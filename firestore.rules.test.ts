@@ -1,0 +1,97 @@
+/**
+ * Security Rules Verification Suite (Dirty Dozen Vectors)
+ * Aligns with security_spec.md and firestore.rules
+ */
+export const dirtyDozenVectors = [
+  {
+    name: '1. Unauthenticated order creation',
+    auth: null,
+    path: '/orders/ord_001',
+    operation: 'create',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '2. Identity spoofing on order creation',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_002',
+    operation: 'create',
+    payload: { userId: 'userB' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '3. Pre-paid order bypass on create',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_003',
+    operation: 'create',
+    payload: { userId: 'userA', paymentStatus: 'PAID', orderStatus: 'PREPARING' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '4. Shadow field injection on user profile',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/users/userA',
+    operation: 'create',
+    payload: { uid: 'userA', isAdmin: true },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '5. Unverified email bypass',
+    auth: { uid: 'userA', token: { email_verified: false } },
+    path: '/orders/ord_005',
+    operation: 'create',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '6. Document ID poisoning',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/invalid$id!poison',
+    operation: 'create',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '7. Timestamp forgery',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_007',
+    operation: 'create',
+    payload: { createdAt: '2020-01-01T00:00:00Z' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '8. Cross-user cart access',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/users/userB/cart/item1',
+    operation: 'get',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '9. Unscoped order list scraping',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders',
+    operation: 'list',
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '10. Terminal state resurrection',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_cancelled',
+    operation: 'update',
+    payload: { orderStatus: 'PREPARING' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '11. Value poisoning on order update',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_pending',
+    operation: 'update',
+    payload: { paymentStatus: 12345 },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '12. Unbounded itemsSummary array exhaustion',
+    auth: { uid: 'userA', token: { email_verified: true } },
+    path: '/orders/ord_012',
+    operation: 'create',
+    payload: { itemsSummaryCount: 100 },
+    expected: 'PERMISSION_DENIED',
+  },
+];

@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-sans);
+    overflow-x: clip;
+  }
+
+  body {
+    overflow-x: clip;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* =========================================================
+   CURATED GPU-COMPOSITED CSS ANIMATIONS
+   Strictly animates transform, opacity, clip-path, filter
+   ========================================================= */
+
+@keyframes msHeroKenBurns {
+  0% {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.075) translate3d(-1.2%, -0.8%, 0);
+  }
+}
+
+@keyframes msFadeRise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.985);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes msCurtainReveal {
+  0% {
+    opacity: 0;
+    clip-path: inset(8% 0 0 0 round 1rem);
+    transform: translate3d(0, 16px, 0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 1rem);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes msPopIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.94);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes msShimmerSlide {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(200%, 0, 0);
+  }
+}
+
+/* Slow cinematic Ken Burns drift for Hero media */
+.ms-hero-ken-burns {
+  animation: msHeroKenBurns 18s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate;
+  will-change: transform;
+}
+
+/* Smooth entrance classes */
+.ms-fade-rise {
+  animation: msFadeRise 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ms-pop-in {
+  animation: msPopIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Animated hairline underline for nav & footer links */
+.ms-link-underline {
+  position: relative;
+}
+
+.ms-link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 1.5px;
+  background-color: currentColor;
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ms-link-underline:hover::after,
+.ms-link-underline:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left center;
+}
+
+/* Specular light glint sweep on primary CTA buttons */
+.ms-btn-glint {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ms-btn-glint::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 100%
+  );
+  transform: translate3d(-160%, 0, 0) skewX(-20deg);
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ms-btn-glint:hover::before {
+  transform: translate3d(320%, 0, 0) skewX(-20deg);
+}
+
+/* 3D depth card elevation + glass sheen sweep on hover */
+.ms-product-card {
+  position: relative;
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.36s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.25s ease;
+  will-change: transform;
+}
+
+.ms-product-card:hover {
+  transform: translate3d(0, -6px, 0);
+  box-shadow: 0 22px 42px -16px rgba(20, 20, 20, 0.14);
+}
+
+.ms-card-media {
+  position: relative;
+  overflow: hidden;
+}
+
+.ms-card-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.24) 50%,
+    transparent 80%
+  );
+  transform: translate3d(-130%, 0, 0);
+  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.ms-product-card:hover .ms-card-media::after {
+  transform: translate3d(130%, 0, 0);
+}
+
+/* Metric item subtle accent hairline on hover */
+.ms-metric-item {
+  position: relative;
+}
+
+.ms-metric-item::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 2.5rem;
+  height: 2px;
+  background-color: #D92323;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ms-metric-item:hover::before {
+  transform: scaleX(1);
+}
+
+/* Progress bar subtle surface shimmer */
+.ms-progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.ms-progress-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%
+  );
+  animation: msShimmerSlide 2.2s ease-in-out infinite;
+}
+
+/* Native CSS Scroll-Driven Animations where supported */
+@supports (animation-timeline: view()) {
+  .ms-scroll-reveal {
+    animation: msFadeRise linear both;
+    animation-timeline: view();
+    animation-range: entry 4% cover 24%;
+  }
+
+  .ms-scroll-curtain {
+    animation: msCurtainReveal linear both;
+    animation-timeline: view();
+    animation-range: entry 4% cover 28%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .ms-hero-ken-burns,
+  .ms-fade-rise,
+  .ms-pop-in,
+  .ms-progress-shimmer::after,
+  .ms-scroll-reveal,
+  .ms-scroll-curtain {
+    animation: none !important;
+    filter: none !important;
+    clip-path: none !important;
+    transform: none !important;
+  }
+
+  .ms-btn-glint::before,
+  .ms-card-media::after,
+  .ms-link-underline::after,
+  .ms-product-card,
+  .ms-metric-item::before {
+    transition-duration: 0.01ms !important;
+  }
+}

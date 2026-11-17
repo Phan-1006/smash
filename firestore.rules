@@ -1,0 +1,338 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny all paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isEmailVerified() && request.auth.token.email == 'p9695009@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Validation Blueprint: Product
+    function isValidProduct(data, productId) {
+      return data.keys().hasAll([
+          'id', 'name', 'category', 'categoryLabel', 'calories',
+          'description', 'priceUsd', 'image', 'available',
+          'supportsCombo', 'comboExtraUsd', 'addons', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'name', 'category', 'categoryLabel', 'calories',
+          'description', 'priceUsd', 'image', 'tag', 'available',
+          'supportsCombo', 'comboExtraUsd', 'addons', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == productId
+        && data.id.size() <= 64
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 100
+        && data.category in ['burgers', 'pizzas', 'chicken', 'sides', 'drinks']
+        && data.categoryLabel is string
+        && data.categoryLabel.size() >= 1
+        && data.categoryLabel.size() <= 50
+        && data.calories is string
+        && data.calories.size() >= 1
+        && data.calories.size() <= 30
+        && data.description is string
+        && data.description.size() >= 1
+        && data.description.size() <= 400
+        && data.priceUsd is number
+        && data.priceUsd >= 0.5
+        && data.priceUsd <= 500
+        && data.image is string
+        && data.image.size() >= 1
+        && data.image.size() <= 240
+        && (!('tag' in data) || (data.tag is string && data.tag.size() <= 30))
+        && data.available is bool
+        && data.supportsCombo is bool
+        && data.comboExtraUsd is number
+        && data.comboExtraUsd >= 0
+        && data.comboExtraUsd <= 50
+        && data.addons is list
+        && data.addons.size() <= 10
+        && (data.addons.size() == 0 || (
+          data.addons[0] is map
+          && data.addons[0].keys().hasAll(['id', 'label', 'priceUsd'])
+          && data.addons[0].keys().hasOnly(['id', 'label', 'priceUsd'])
+          && data.addons[0].id is string
+          && data.addons[0].label is string
+          && data.addons[0].priceUsd is number
+        ))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'phone', 'defaultAddress', 'defaultCity', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.displayName is string
+        && data.displayName.size() >= 1
+        && data.displayName.size() <= 80
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 160
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
+        && (!('defaultAddress' in data) || (data.defaultAddress is string && data.defaultAddress.size() <= 240))
+        && (!('defaultCity' in data) || (data.defaultCity is string && data.defaultCity.size() <= 80))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: CartItem
+    function isValidCartItem(data, userId, itemId) {
+      return data.keys().hasAll(['id', 'userId', 'productId', 'productName', 'unitPriceUsd', 'quantity', 'variant', 'addons', 'image', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'userId', 'productId', 'productName', 'unitPriceUsd', 'quantity', 'variant', 'addons', 'notes', 'image', 'updatedAt'])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == itemId
+        && data.userId is string
+        && isValidId(data.userId)
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.productId is string
+        && isValidId(data.productId)
+        && data.productId.size() <= 64
+        && data.productName is string
+        && data.productName.size() >= 1
+        && data.productName.size() <= 100
+        && data.unitPriceUsd is number
+        && data.unitPriceUsd >= 0.5
+        && data.unitPriceUsd <= 500
+        && data.quantity is int
+        && data.quantity >= 1
+        && data.quantity <= 50
+        && data.variant in ['Solo', 'Menu Complet']
+        && data.addons is list
+        && data.addons.size() <= 8
+        && (data.addons.size() == 0 || (data.addons[0] is string && data.addons[0].size() <= 80))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 180))
+        && data.image is string
+        && data.image.size() >= 1
+        && data.image.size() <= 240
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: Order
+    function isValidOrder(data, orderId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'customerName', 'customerEmail', 'customerPhone',
+          'deliveryMode', 'deliveryAddress', 'currency', 'subtotalUsd',
+          'deliveryFeeUsd', 'totalAmount', 'paymentMethod', 'paymentProvider',
+          'transactionReference', 'paymentStatus', 'orderStatus', 'itemsSummary',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'customerName', 'customerEmail', 'customerPhone',
+          'deliveryMode', 'deliveryAddress', 'currency', 'subtotalUsd',
+          'discountUsd', 'promoCode', 'deliveryFeeUsd', 'totalAmount',
+          'paymentMethod', 'paymentProvider', 'transactionReference',
+          'paymentStatus', 'orderStatus', 'itemsSummary', 'createdAt', 'updatedAt'
+        ])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == orderId
+        && data.id.size() <= 64
+        && data.userId is string
+        && isValidId(data.userId)
+        && data.customerName is string
+        && data.customerName.size() >= 1
+        && data.customerName.size() <= 80
+        && data.customerEmail is string
+        && data.customerEmail.size() >= 3
+        && data.customerEmail.size() <= 160
+        && data.customerPhone is string
+        && data.customerPhone.size() >= 6
+        && data.customerPhone.size() <= 30
+        && data.deliveryMode in ['delivery', 'pickup']
+        && data.deliveryAddress is string
+        && data.deliveryAddress.size() >= 2
+        && data.deliveryAddress.size() <= 240
+        && data.currency in ['USD', 'CDF']
+        && data.subtotalUsd is number
+        && data.subtotalUsd >= 0
+        && data.subtotalUsd <= 10000
+        && (!('discountUsd' in data) || (data.discountUsd is number && data.discountUsd >= 0 && data.discountUsd <= 5000))
+        && (!('promoCode' in data) || (data.promoCode is string && data.promoCode.size() <= 24))
+        && data.deliveryFeeUsd is number
+        && data.deliveryFeeUsd >= 0
+        && data.deliveryFeeUsd <= 500
+        && data.totalAmount is number
+        && data.totalAmount > 0
+        && data.totalAmount <= 50000000
+        && data.paymentMethod in ['MOBILEMONEY', 'CARD']
+        && data.paymentProvider in ['MPESA', 'AIRTEL', 'ORANGE', 'AFRICELL', 'VISA_MASTERCARD']
+        && data.transactionReference is string
+        && isValidId(data.transactionReference)
+        && data.transactionReference.size() >= 4
+        && data.transactionReference.size() <= 80
+        && data.paymentStatus in ['PENDING', 'PAID', 'FAILED']
+        && data.orderStatus in ['AWAITING_PAYMENT', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'CANCELLED']
+        && data.itemsSummary is list
+        && data.itemsSummary.size() >= 1
+        && data.itemsSummary.size() <= 30
+        && data.itemsSummary[0] is string
+        && data.itemsSummary[0].size() <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Order Update Actions
+    function isOrderNotTerminal() {
+      return existing().orderStatus != 'DELIVERED' && existing().orderStatus != 'CANCELLED';
+    }
+
+    function isConfirmPaymentAction() {
+      return existing().paymentStatus == 'PENDING'
+        && incoming().paymentStatus == 'PAID'
+        && incoming().orderStatus == 'PREPARING';
+    }
+
+    function isFailPaymentAction() {
+      return existing().paymentStatus == 'PENDING'
+        && incoming().paymentStatus == 'FAILED'
+        && incoming().orderStatus == 'CANCELLED';
+    }
+
+    function isCancelPendingOrderAction() {
+      return existing().paymentStatus == 'PENDING'
+        && incoming().paymentStatus == 'PENDING'
+        && incoming().orderStatus == 'CANCELLED';
+    }
+
+    // Public Menu Products Catalog (Admin-managed)
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create: if isAdmin()
+        && isValidId(productId)
+        && isValidProduct(incoming(), productId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(productId)
+        && isValidProduct(incoming(), productId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'category', 'categoryLabel', 'calories', 'description',
+          'priceUsd', 'image', 'tag', 'available', 'supportsCombo',
+          'comboExtraUsd', 'addons', 'updatedAt'
+        ]);
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+
+    // Users Collection (Strict PII Isolation)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isEmailVerified()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isEmailVerified()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'phone', 'defaultAddress', 'defaultCity', 'updatedAt']);
+      allow delete: if false;
+
+      // User Cart Subcollection
+      match /cart/{itemId} {
+        allow get: if isValidId(userId) && isValidId(itemId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId);
+        allow create: if isEmailVerified()
+          && isValidId(userId)
+          && isValidId(itemId)
+          && isOwner(userId)
+          && isValidCartItem(incoming(), userId, itemId)
+          && incoming().updatedAt == request.time;
+        allow update: if isEmailVerified()
+          && isValidId(userId)
+          && isValidId(itemId)
+          && isOwner(userId)
+          && isValidCartItem(incoming(), userId, itemId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'variant', 'addons', 'notes', 'unitPriceUsd', 'updatedAt']);
+        allow delete: if isEmailVerified()
+          && isValidId(userId)
+          && isValidId(itemId)
+          && isOwner(userId);
+      }
+    }
+
+    // Orders Collection (Owner + Verified Admin p9695009@gmail.com)
+    match /orders/{orderId} {
+      allow get: if isSignedIn()
+        && isValidId(orderId)
+        && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isEmailVerified()
+        && isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().userId == request.auth.uid
+        && incoming().paymentStatus == 'PENDING'
+        && incoming().orderStatus == 'AWAITING_PAYMENT'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isEmailVerified()
+        && isValidId(orderId)
+        && isValidOrder(incoming(), orderId)
+        && incoming().userId == existing().userId
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'orderStatus', 'updatedAt'])
+        && (
+          isAdmin() ||
+          (
+            existing().userId == request.auth.uid
+            && isOrderNotTerminal()
+            && (isConfirmPaymentAction() || isFailPaymentAction() || isCancelPendingOrderAction())
+          )
+        );
+      allow delete: if false;
+    }
+  }
+}

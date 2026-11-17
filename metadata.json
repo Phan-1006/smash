@@ -1,0 +1,6 @@
+{
+  "name": "Maison Smash",
+  "description": "E-commerce de smash burgers artisanaux, poulet croustillant et paiement live MaishaPay avec authentification Google.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
-import { Check, Loader2, LogOut, RefreshCw, ShieldCheck, X } from 'lucide-react';
+import { Check, Loader2, LogOut, MapPin, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { updateOrderPaymentState, updateUserDeliveryProfile } from '../services/storefrontService';
 import { isAdminUser, OrderDoc, UserProfileDoc } from '../types/ecommerce';
+import { apiUrl } from '../utils/api';
 import { detectCongoleseMobileNetwork } from '../utils/mobileNetwork';
 
 interface OrdersPanelProps {
@@ -88,7 +89,7 @@ export function OrdersPanel({
     setCheckingRef(order.id);
     try {
       const res = await fetch(
-        `/api/payments/maishapay/status/${encodeURIComponent(order.transactionReference)}`
+        apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(order.transactionReference)}`)
       );
       if (!res.ok) return;
       const data = (await res.json()) as { status: 'PENDING' | 'PAID' | 'FAILED' };
@@ -334,6 +335,20 @@ export function OrdersPanel({
                               <li key={idx}>{line}</li>
                             ))}
                           </ul>
+
+                          {typeof order.deliveryLat === 'number' &&
+                            typeof order.deliveryLng === 'number' && (
+                              <p className="text-xs text-zinc-500 inline-flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                <span>
+                                  Position GPS transmise (
+                                  <span className="font-mono tabular-nums">
+                                    {order.deliveryLat.toFixed(5)}, {order.deliveryLng.toFixed(5)}
+                                  </span>
+                                  )
+                                </span>
+                              </p>
+                            )}
 
                           {order.paymentStatus === 'PENDING' && order.orderStatus !== 'CANCELLED' && (
                             <div className="pt-2 border-t border-zinc-100 flex items-center gap-2">

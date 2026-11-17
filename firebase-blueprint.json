@@ -240,6 +240,15 @@
           "minLength": 2,
           "maxLength": 240
         },
+        "deliveryLat": {
+          "type": "number"
+        },
+        "deliveryLng": {
+          "type": "number"
+        },
+        "deliveryAccuracy": {
+          "type": "number"
+        },
         "currency": {
           "type": "string",
           "enum": ["USD", "CDF"]

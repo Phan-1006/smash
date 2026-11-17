@@ -109,10 +109,56 @@ function extractMaishaPayError(data: Record<string, unknown>, httpStatus: number
   return `Erreur passerelle MaishaPay (${httpStatus})`;
 }
 
+const EXPLICIT_ALLOWED_ORIGINS = new Set<string>([
+  'https://smash-flame.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]);
+
+if (process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL') {
+  EXPLICIT_ALLOWED_ORIGINS.add(process.env.APP_URL.trim().replace(/\/$/, ''));
+}
+
+if (process.env.ALLOWED_ORIGIN) {
+  for (const entry of process.env.ALLOWED_ORIGIN.split(',')) {
+    const cleaned = entry.trim().replace(/\/$/, '');
+    if (cleaned) {
+      EXPLICIT_ALLOWED_ORIGINS.add(cleaned);
+    }
+  }
+}
+
+function isAllowedOrigin(origin: string | undefined): string | null {
+  if (!origin) return null;
+  const normalized = origin.replace(/\/$/, '');
+  if (EXPLICIT_ALLOWED_ORIGINS.has(normalized)) {
+    return normalized;
+  }
+  if (/^https:\/\/[a-z0-9-]+\.europe-west2\.run\.app$/i.test(normalized)) {
+    return normalized;
+  }
+  return null;
+}
+
 async function createServer() {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true }));
+
+  app.use('/api', (req: Request, res: Response, next) => {
+    const allowedOrigin = isAllowedOrigin(req.headers.origin);
+    if (allowedOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    }
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
 
   // Check MaishaPay Live configuration status (never exposes keys)
   app.get('/api/payments/maishapay/config', (_req: Request, res: Response) => {

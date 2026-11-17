@@ -83,6 +83,9 @@ export interface OrderDoc {
   customerPhone: string;
   deliveryMode: DeliveryMode;
   deliveryAddress: string;
+  deliveryLat?: number;
+  deliveryLng?: number;
+  deliveryAccuracy?: number;
   currency: CurrencyCode;
   subtotalUsd: number;
   discountUsd?: number;

@@ -3,7 +3,9 @@ import { User } from 'firebase/auth';
 import {
   Check,
   Edit3,
+  ExternalLink,
   Loader2,
+  MapPin,
   PackagePlus,
   Plus,
   Search,
@@ -451,6 +453,26 @@ export function AdminPanel({
                             <p className="text-xs text-zinc-600">
                               {order.customerEmail} · {order.deliveryAddress}
                             </p>
+                            {typeof order.deliveryLat === 'number' &&
+                              typeof order.deliveryLng === 'number' && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${order.deliveryLat},${order.deliveryLng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#D92323] hover:underline mt-1"
+                                >
+                                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="font-mono tabular-nums">
+                                    GPS {order.deliveryLat.toFixed(5)}, {order.deliveryLng.toFixed(5)}
+                                  </span>
+                                  {typeof order.deliveryAccuracy === 'number' && (
+                                    <span className="text-zinc-500 font-normal">
+                                      (±{order.deliveryAccuracy} m)
+                                    </span>
+                                  )}
+                                  <ExternalLink className="w-3 h-3 shrink-0" />
+                                </a>
+                              )}
                           </div>
 
                           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2.5 sm:gap-3">

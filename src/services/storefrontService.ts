@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -110,9 +111,16 @@ export async function deleteProduct(productId: string): Promise<void> {
 export async function seedCatalogToFirestore(items: MenuItem[]): Promise<void> {
   const path = 'products';
   try {
+    const existingSnap = await getDocs(collection(db, 'products'));
+    const existingIds = new Set(existingSnap.docs.map((d) => d.id));
     const batch = writeBatch(db);
+    let pendingCount = 0;
+
     for (const item of items) {
       const cleanId = sanitizeId(item.id, 64);
+      if (existingIds.has(cleanId)) {
+        continue;
+      }
       const ref = doc(db, 'products', cleanId);
       const docData: Record<string, unknown> = {
         id: cleanId,
@@ -126,7 +134,11 @@ export async function seedCatalogToFirestore(items: MenuItem[]): Promise<void> {
         available: item.available,
         supportsCombo: item.supportsCombo,
         comboExtraUsd: Number(item.comboExtraUsd.toFixed(2)),
-        addons: item.addons.slice(0, 10),
+        addons: item.addons.slice(0, 10).map((a) => ({
+          id: sanitizeId(a.id, 40),
+          label: a.label.trim().slice(0, 80),
+          priceUsd: Number(a.priceUsd.toFixed(2)),
+        })),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -134,8 +146,12 @@ export async function seedCatalogToFirestore(items: MenuItem[]): Promise<void> {
         docData.tag = item.tag.slice(0, 30);
       }
       batch.set(ref, docData);
+      pendingCount++;
     }
-    await batch.commit();
+
+    if (pendingCount > 0) {
+      await batch.commit();
+    }
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, path);
   }
@@ -337,6 +353,26 @@ export async function createOrderRecord(
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
+    if (
+      typeof order.deliveryLat === 'number' &&
+      Number.isFinite(order.deliveryLat) &&
+      order.deliveryLat >= -90 &&
+      order.deliveryLat <= 90 &&
+      typeof order.deliveryLng === 'number' &&
+      Number.isFinite(order.deliveryLng) &&
+      order.deliveryLng >= -180 &&
+      order.deliveryLng <= 180
+    ) {
+      payload.deliveryLat = Number(order.deliveryLat.toFixed(6));
+      payload.deliveryLng = Number(order.deliveryLng.toFixed(6));
+      if (
+        typeof order.deliveryAccuracy === 'number' &&
+        Number.isFinite(order.deliveryAccuracy) &&
+        order.deliveryAccuracy >= 0
+      ) {
+        payload.deliveryAccuracy = Math.min(50000, Math.round(order.deliveryAccuracy));
+      }
+    }
     if (typeof order.discountUsd === 'number' && order.discountUsd > 0) {
       payload.discountUsd = Number(order.discountUsd.toFixed(2));
     }

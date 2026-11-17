@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Loader2,
   Lock,
+  MapPin,
   Smartphone,
   X,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ import type {
   PaymentProviderType,
   UserProfileDoc,
 } from '../types/ecommerce';
+import { apiUrl } from '../utils/api';
 import {
   detectCongoleseMobileNetwork,
   type DetectedMobileNetwork,
@@ -80,6 +82,13 @@ export function CheckoutModal({
   const [mobileProvider, setMobileProvider] =
     useState<Exclude<PaymentProviderType, 'VISA_MASTERCARD'>>('MPESA');
   const [detectedNetwork, setDetectedNetwork] = useState<DetectedMobileNetwork | null>(null);
+  const [sharedLocation, setSharedLocation] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+  } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const [gatewayConfig, setGatewayConfig] = useState<MaishaPayConfigResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -97,6 +106,7 @@ export function CheckoutModal({
   useEffect(() => {
     if (!open) return;
     setErrorMessage(null);
+    setLocationError(null);
     setPaymentPhase('form');
     setActiveTxRef(null);
     setActiveOrderId(null);
@@ -123,7 +133,7 @@ export function CheckoutModal({
       );
     }
 
-    fetch('/api/payments/maishapay/config')
+    fetch(apiUrl('/api/payments/maishapay/config'))
       .then((res) => res.json())
       .then((data: MaishaPayConfigResponse) => setGatewayConfig(data))
       .catch(() => setGatewayConfig(null));
@@ -137,7 +147,9 @@ export function CheckoutModal({
 
     const timer = window.setInterval(async () => {
       try {
-        const res = await fetch(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`);
+        const res = await fetch(
+          apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`)
+        );
         if (!res.ok) return;
         const data = (await res.json()) as {
           status: 'PENDING' | 'PAID' | 'FAILED';
@@ -185,6 +197,56 @@ export function CheckoutModal({
     }
   };
 
+  const handleShareLocation = () => {
+    if (locating) return;
+    if (!('geolocation' in navigator)) {
+      setLocationError(
+        'La géolocalisation n’est pas prise en charge par ce navigateur. Saisissez votre adresse manuellement.'
+      );
+      return;
+    }
+
+    setLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        const accuracy = Math.max(1, Math.round(position.coords.accuracy || 20));
+
+        setSharedLocation({ lat, lng, accuracy });
+        setDeliveryAddress((prev) =>
+          prev.trim().length === 0
+            ? `Position GPS partagée (${lat.toFixed(5)}, ${lng.toFixed(5)})`
+            : prev
+        );
+        setLocating(false);
+      },
+      (geoError) => {
+        if (geoError.code === geoError.PERMISSION_DENIED) {
+          setLocationError(
+            'Accès à la position refusé. Autorisez la localisation dans votre navigateur ou indiquez votre adresse ci-dessus.'
+          );
+        } else if (geoError.code === geoError.TIMEOUT) {
+          setLocationError(
+            'Délai de localisation dépassé. Vérifiez votre signal GPS et réessayez.'
+          );
+        } else {
+          setLocationError(
+            'Impossible de récupérer votre position actuelle. Indiquez votre adresse ci-dessus.'
+          );
+        }
+        setLocating(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      }
+    );
+  };
+
   const handleGoogleAuth = async () => {
     if (authBusy) return;
     setAuthBusy(true);
@@ -202,7 +264,9 @@ export function CheckoutModal({
   const handleCheckStatusNow = async () => {
     if (!activeTxRef || !activeOrderId) return;
     try {
-      const res = await fetch(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`);
+      const res = await fetch(
+        apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`)
+      );
       if (!res.ok) return;
       const data = (await res.json()) as {
         status: 'PENDING' | 'PAID' | 'FAILED';
@@ -273,6 +337,12 @@ export function CheckoutModal({
           deliveryMode === 'pickup'
             ? 'Comptoir Maison Smash — Gombe, Kinshasa'
             : deliveryAddress.trim(),
+        deliveryLat:
+          deliveryMode === 'delivery' && sharedLocation ? sharedLocation.lat : undefined,
+        deliveryLng:
+          deliveryMode === 'delivery' && sharedLocation ? sharedLocation.lng : undefined,
+        deliveryAccuracy:
+          deliveryMode === 'delivery' && sharedLocation ? sharedLocation.accuracy : undefined,
         currency,
         subtotalUsd: Number(subtotalUsd.toFixed(2)),
         discountUsd: discountUsd > 0 ? discountUsd : undefined,
@@ -295,7 +365,7 @@ export function CheckoutModal({
           ? '/api/payments/maishapay/card'
           : '/api/payments/maishapay/mobile-money';
 
-      const response = await fetch(endpoint, {
+      const response = await fetch(apiUrl(endpoint), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -635,6 +705,89 @@ export function CheckoutModal({
                     onChange={(e) => setDeliveryAddress(e.target.value)}
                     className="w-full min-h-[44px] px-3.5 py-2.5 text-base sm:text-sm border border-zinc-300 rounded-lg focus:border-[#141414] focus:outline-none read-only:bg-[#F5F5F7]"
                   />
+
+                  {deliveryMode === 'delivery' && (
+                    <div className="mt-3 p-3.5 rounded-xl bg-[#F5F5F7] border border-zinc-200/80 space-y-2">
+                      {sharedLocation ? (
+                        <div className="ms-pop-in flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <MapPin
+                              className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5"
+                              strokeWidth={2}
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#141414]">
+                                Position GPS partagée avec le livreur
+                              </p>
+                              <p className="font-mono tabular-nums text-[11px] text-zinc-600 truncate">
+                                {sharedLocation.lat.toFixed(5)}, {sharedLocation.lng.toFixed(5)} ·
+                                Précision ±{sharedLocation.accuracy} m
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={handleShareLocation}
+                              disabled={locating}
+                              className="px-2.5 py-1.5 min-h-[34px] text-xs font-semibold bg-white border border-zinc-200 rounded-lg text-[#141414] hover:border-zinc-400 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {locating ? 'Actualisation...' : 'Actualiser'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSharedLocation(null)}
+                              className="px-2.5 py-1.5 min-h-[34px] text-xs font-semibold text-zinc-600 hover:text-[#D92323] transition-colors cursor-pointer"
+                            >
+                              Retirer
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-start gap-2.5">
+                            <MapPin
+                              className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5"
+                              strokeWidth={2}
+                            />
+                            <div>
+                              <p className="text-xs font-semibold text-[#141414]">
+                                Partage de localisation (facultatif)
+                              </p>
+                              <p className="text-[11px] text-zinc-500">
+                                Envoyez votre position GPS exacte pour guider le livreur sans
+                                erreur.
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleShareLocation}
+                            disabled={locating}
+                            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 min-h-[40px] bg-white border border-zinc-300 text-xs font-semibold text-[#141414] rounded-lg hover:border-[#141414] hover:bg-zinc-50 transition-colors shrink-0 cursor-pointer disabled:opacity-60"
+                          >
+                            {locating ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Localisation...</span>
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="w-3.5 h-3.5 text-[#D92323]" />
+                                <span>Partager ma position</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {locationError && (
+                        <p className="text-xs text-[#D92323] font-medium">{locationError}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Payment Method Selector (clean labels) */}

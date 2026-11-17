@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Global Primitives
     function isValidId(id) {
-      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
     }
 
     function incoming() {
@@ -29,7 +29,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isEmailVerified() && request.auth.token.email == 'p9695009@gmail.com';
+      return isEmailVerified()
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'p9695009@gmail.com';
     }
 
     function isOwner(userId) {
@@ -157,8 +159,8 @@ service cloud.firestore {
         ])
         && data.keys().hasOnly([
           'id', 'userId', 'customerName', 'customerEmail', 'customerPhone',
-          'deliveryMode', 'deliveryAddress', 'currency', 'subtotalUsd',
-          'discountUsd', 'promoCode', 'deliveryFeeUsd', 'totalAmount',
+          'deliveryMode', 'deliveryAddress', 'deliveryLat', 'deliveryLng', 'deliveryAccuracy',
+          'currency', 'subtotalUsd', 'discountUsd', 'promoCode', 'deliveryFeeUsd', 'totalAmount',
           'paymentMethod', 'paymentProvider', 'transactionReference',
           'paymentStatus', 'orderStatus', 'itemsSummary', 'createdAt', 'updatedAt'
         ])
@@ -181,6 +183,9 @@ service cloud.firestore {
         && data.deliveryAddress is string
         && data.deliveryAddress.size() >= 2
         && data.deliveryAddress.size() <= 240
+        && (!('deliveryLat' in data) || (data.deliveryLat is number && data.deliveryLat >= -90 && data.deliveryLat <= 90))
+        && (!('deliveryLng' in data) || (data.deliveryLng is number && data.deliveryLng >= -180 && data.deliveryLng <= 180))
+        && (!('deliveryAccuracy' in data) || (data.deliveryAccuracy is number && data.deliveryAccuracy >= 0 && data.deliveryAccuracy <= 50000))
         && data.currency in ['USD', 'CDF']
         && data.subtotalUsd is number
         && data.subtotalUsd >= 0

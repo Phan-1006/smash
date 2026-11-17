@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
+import {
+  getRedirectResult,
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut,
+  User,
+} from 'firebase/auth';
 import { Check } from 'lucide-react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { AdminPanel } from './components/AdminPanel';
@@ -75,18 +82,32 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const authPromiseRef = useRef<Promise<string | null> | null>(null);
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, durationMs = 3000) => {
     setToastMessage(msg);
     window.setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
-    }, 2800);
+    }, durationMs);
   }, []);
 
   useEffect(() => {
     testFirestoreConnection();
     const unsubProducts = subscribeProducts(setCloudProducts);
+    getRedirectResult(auth).catch((err) => {
+      const code =
+        typeof err === 'object' && err !== null && 'code' in err
+          ? String((err as { code?: unknown }).code)
+          : '';
+      if (code === 'auth/unauthorized-domain') {
+        showToast(
+          `Domaine non autorisé (${window.location.hostname}) dans Firebase Authentication.`,
+          6500
+        );
+      } else if (code) {
+        console.error('Google redirect error:', code, err);
+      }
+    });
     return () => unsubProducts();
-  }, []);
+  }, [showToast]);
 
   // Use Firestore catalog when seeded, fallback to default MENU_ITEMS
   const activeMenu: MenuItem[] = useMemo(() => {
@@ -197,18 +218,43 @@ export default function App() {
         }
         if (code === 'auth/popup-closed-by-user' || msg.includes('popup-closed-by-user')) {
           const closedMsg = 'Fenêtre de connexion Google fermée.';
-          showToast(closedMsg);
+          showToast(closedMsg, 4000);
           return closedMsg;
         }
         if (code === 'auth/popup-blocked' || msg.includes('popup-blocked')) {
+          const isTopLevelWindow = typeof window !== 'undefined' && window.self === window.top;
+          if (isTopLevelWindow) {
+            await signInWithRedirect(auth, googleProvider);
+            return null;
+          }
           const blockedMsg =
             'Pop-up bloquée par le navigateur. Veuillez autoriser les pop-ups pour ce site.';
-          showToast(blockedMsg);
+          showToast(blockedMsg, 5500);
           return blockedMsg;
         }
+        if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+          const host = typeof window !== 'undefined' ? window.location.hostname : '';
+          const unauthMsg = `Domaine non autorisé (${host}) : ajoutez-le dans Firebase Authentication > Domaines autorisés.`;
+          showToast(unauthMsg, 7000);
+          return unauthMsg;
+        }
+        if (code === 'auth/operation-not-allowed') {
+          const opMsg =
+            'Fournisseur Google désactivé dans Firebase Console > Authentication > Sign-in method.';
+          showToast(opMsg, 7000);
+          return opMsg;
+        }
+        if (code === 'auth/network-request-failed') {
+          const netMsg = 'Erreur réseau lors de la connexion Google. Vérifiez votre connexion.';
+          showToast(netMsg, 5500);
+          return netMsg;
+        }
 
-        const fallbackMsg = 'Impossible de finaliser la connexion Google. Veuillez réessayer.';
-        showToast(fallbackMsg);
+        console.error('Google Sign-In error:', code, err);
+        const fallbackMsg = code
+          ? `Erreur connexion Google (${code}). Vérifiez votre configuration Firebase.`
+          : 'Impossible de finaliser la connexion Google. Veuillez réessayer.';
+        showToast(fallbackMsg, 6500);
         return fallbackMsg;
       } finally {
         setAuthLoading(false);
@@ -445,7 +491,7 @@ export default function App() {
               >
                 <span className="flex items-center gap-2.5 min-w-0">
                   <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <span className="truncate">{toastMessage}</span>
+                  <span className="leading-snug">{toastMessage}</span>
                 </span>
                 <button
                   type="button"

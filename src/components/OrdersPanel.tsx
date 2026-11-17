@@ -4,7 +4,7 @@ import { Check, Loader2, LogOut, MapPin, RefreshCw, ShieldCheck, X } from 'lucid
 import { AnimatePresence, motion } from 'motion/react';
 import { updateOrderPaymentState, updateUserDeliveryProfile } from '../services/storefrontService';
 import { isAdminUser, OrderDoc, UserProfileDoc } from '../types/ecommerce';
-import { apiUrl } from '../utils/api';
+import { apiUrl, parseJsonSafe } from '../utils/api';
 import { detectCongoleseMobileNetwork } from '../utils/mobileNetwork';
 
 interface OrdersPanelProps {
@@ -92,7 +92,8 @@ export function OrdersPanel({
         apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(order.transactionReference)}`)
       );
       if (!res.ok) return;
-      const data = (await res.json()) as { status: 'PENDING' | 'PAID' | 'FAILED' };
+      const data = await parseJsonSafe<{ status: 'PENDING' | 'PAID' | 'FAILED' }>(res);
+      if (!data) return;
       if (data.status === 'PAID') {
         await updateOrderPaymentState(order.id, 'PAID', 'PREPARING');
       } else if (data.status === 'FAILED') {

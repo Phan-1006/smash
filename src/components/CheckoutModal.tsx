@@ -33,7 +33,7 @@ import type {
   PaymentProviderType,
   UserProfileDoc,
 } from '../types/ecommerce';
-import { apiUrl } from '../utils/api';
+import { apiUrl, parseJsonSafe } from '../utils/api';
 import {
   detectCongoleseMobileNetwork,
   type DetectedMobileNetwork,
@@ -134,8 +134,8 @@ export function CheckoutModal({
     }
 
     fetch(apiUrl('/api/payments/maishapay/config'))
-      .then((res) => res.json())
-      .then((data: MaishaPayConfigResponse) => setGatewayConfig(data))
+      .then((res) => parseJsonSafe<MaishaPayConfigResponse>(res))
+      .then((data) => setGatewayConfig(data))
       .catch(() => setGatewayConfig(null));
   }, [open, user, profile, deliveryMode]);
 
@@ -151,10 +151,11 @@ export function CheckoutModal({
           apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`)
         );
         if (!res.ok) return;
-        const data = (await res.json()) as {
+        const data = await parseJsonSafe<{
           status: 'PENDING' | 'PAID' | 'FAILED';
           gatewayMessage?: string;
-        };
+        }>(res);
+        if (!data) return;
         if (data.status === 'PAID') {
           await updateOrderPaymentState(activeOrderId, 'PAID', 'PREPARING');
           await onClearCart();
@@ -268,10 +269,11 @@ export function CheckoutModal({
         apiUrl(`/api/payments/maishapay/status/${encodeURIComponent(activeTxRef)}`)
       );
       if (!res.ok) return;
-      const data = (await res.json()) as {
+      const data = await parseJsonSafe<{
         status: 'PENDING' | 'PAID' | 'FAILED';
         gatewayMessage?: string;
-      };
+      }>(res);
+      if (!data) return;
       if (data.status === 'PAID') {
         await updateOrderPaymentState(activeOrderId, 'PAID', 'PREPARING');
         await onClearCart();
@@ -379,16 +381,20 @@ export function CheckoutModal({
         }),
       });
 
-      const result = (await response.json()) as {
+      const result = await parseJsonSafe<{
         error?: string;
         status?: 'PENDING' | 'PAID' | 'FAILED';
         gatewayMessage?: string;
         paymentPageUrl?: string;
-      };
+      }>(response);
 
-      if (!response.ok) {
+      if (!response.ok || !result) {
         await updateOrderPaymentState(orderId, 'FAILED', 'CANCELLED');
-        setErrorMessage(result.error || 'Le paiement a échoué. Vérifiez vos informations.');
+        const fallbackError =
+          response.status === 404
+            ? 'Service de paiement introuvable (/api). Redéployez avec les routes API et vos clés serveur.'
+            : 'Le paiement a échoué. Vérifiez vos informations et la configuration serveur.';
+        setErrorMessage(result?.error || fallbackError);
         setSubmitting(false);
         return;
       }

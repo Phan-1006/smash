@@ -185,6 +185,15 @@ export async function ensureUserProfile(user: User): Promise<void> {
       });
     }
   } catch (err) {
+    const code =
+      typeof err === 'object' && err !== null && 'code' in err
+        ? String((err as { code?: unknown }).code)
+        : '';
+    const msg = err instanceof Error ? err.message : String(err);
+    if (code === 'unavailable' || msg.toLowerCase().includes('offline')) {
+      console.warn('Firestore hors ligne temporaire lors de la synchronisation du profil.');
+      return;
+    }
     handleFirestoreError(err, OperationType.WRITE, path);
   }
 }

@@ -145,16 +145,20 @@ export default function App() {
       setAuthReady(true);
 
       if (nextUser) {
-        await ensureUserProfile(nextUser);
+        try {
+          await ensureUserProfile(nextUser);
 
-        // Migrate any guest cart items into Firestore cart
-        const pendingGuest = loadGuestCart();
-        if (pendingGuest.length > 0) {
-          for (const gItem of pendingGuest) {
-            await upsertCartItem(nextUser.uid, { ...gItem, userId: nextUser.uid });
+          // Migrate any guest cart items into Firestore cart
+          const pendingGuest = loadGuestCart();
+          if (pendingGuest.length > 0) {
+            for (const gItem of pendingGuest) {
+              await upsertCartItem(nextUser.uid, { ...gItem, userId: nextUser.uid });
+            }
+            window.localStorage.removeItem(GUEST_CART_STORAGE_KEY);
+            setGuestCart([]);
           }
-          window.localStorage.removeItem(GUEST_CART_STORAGE_KEY);
-          setGuestCart([]);
+        } catch (err) {
+          console.error('Synchronisation profil/panier interrompue:', err);
         }
 
         unsubProfile = subscribeUserProfile(nextUser.uid, setProfile);

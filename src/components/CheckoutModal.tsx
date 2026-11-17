@@ -393,7 +393,7 @@ export function CheckoutModal({
         const fallbackError =
           response.status === 404
             ? 'Service de paiement introuvable (/api). Redéployez avec les routes API et vos clés serveur.'
-            : 'Le paiement a échoué. Vérifiez vos informations et la configuration serveur.';
+            : `Le paiement a échoué (HTTP ${response.status}). Vérifiez vos informations et la configuration serveur.`;
         setErrorMessage(result?.error || fallbackError);
         setSubmitting(false);
         return;

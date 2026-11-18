@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowDown, ArrowRight } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { formatMoney, MenuItem } from '../data/menu';
 import type { CurrencyCode } from '../types/ecommerce';
 import { BurgerAssemblyArt, BurgerLayerRefs } from './BurgerAssemblyArt';
@@ -15,34 +16,30 @@ interface BurgerStorySectionProps {
   onSelectProduct: (item: MenuItem) => void;
 }
 
-const CHAPTERS = [
+const WELCOME_SLIDES = [
   {
-    id: '01',
-    title: 'Double Smash Charolais 260°C',
-    detail:
-      'Deux boules de bœuf frais saisies sur plancha brûlante pour une croûte dentelée caramélisée sur pain potato toasté.',
-    targetProgress: 0.2,
+    index: '01',
+    kicker: 'Bienvenue chez Maison Smash',
+    headline: 'Ici, le goût commence à l’instant où vous entrez.',
+    subline: 'Kinshasa, Gombe · Une maison dédiée au vrai smash',
   },
   {
-    id: '02',
-    title: 'Double Cheddar Affiné Fondant',
-    detail:
-      'Deux tranches généreuses nappées entre les steaks fumants pour fondre au cœur de la croûte Maillard.',
-    targetProgress: 0.45,
+    index: '02',
+    kicker: 'Notre promesse',
+    headline: 'Rien n’est préparé d’avance. Tout prend vie devant vous.',
+    subline: 'Chaleur franche · Ingrédients frais du matin',
   },
   {
-    id: '03',
-    title: 'Tomate, Pickles & Romaine',
-    detail:
-      'Tranches de tomate cœur de bœuf, oignons rouges, pickles d’aneth croquants et laitue romaine fraîche.',
-    targetProgress: 0.68,
+    index: '03',
+    kicker: 'L’esprit du comptoir',
+    headline: 'Installez-vous, respirez la braise, savourez l’instant.',
+    subline: 'Hospitalité · Générosité · Précision',
   },
   {
-    id: '04',
-    title: 'Sauce Secrète & Brioche Sésame',
-    detail:
-      'Tourbillon de sauce fumée maison scellé par notre pain brioché doré aux graines de sésame torréfiées.',
-    targetProgress: 0.94,
+    index: '04',
+    kicker: 'Votre table est prête',
+    headline: 'Bon appétit. Voici notre signature.',
+    subline: 'Signature Maison Smash · Préparé à la minute',
   },
 ];
 
@@ -53,6 +50,7 @@ export function BurgerStorySection({
 }: BurgerStorySectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<BurgerLayerRefs>({
     topBun: null,
     sauce: null,
@@ -65,7 +63,7 @@ export function BurgerStorySection({
     aura: null,
   });
 
-  const [activeStage, setActiveStage] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(0);
   const [assembled, setAssembled] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
@@ -79,7 +77,7 @@ export function BurgerStorySection({
     const sync = () => {
       setReducedMotion(mq.matches);
       if (mq.matches) {
-        setActiveStage(3);
+        setActiveSlide(3);
         setAssembled(true);
       }
     };
@@ -109,8 +107,7 @@ export function BurgerStorySection({
         (context) => {
           const isMobile = Boolean(context.conditions?.isMobile);
           const isTablet = Boolean(context.conditions?.isTablet);
-          // Mobile keeps a compact, perfectly straight vertical stack inside its lane
-          const spread = isMobile ? 0.28 : isTablet ? 0.56 : 0.92;
+          const spread = isMobile ? 0.28 : isTablet ? 0.54 : 0.9;
 
           gsap.set(topBun, { y: -150 * spread, x: 0, rotationZ: 0, scale: 1 });
           gsap.set(sauce, { y: -102 * spread, x: 0, rotationZ: 0, scale: 0.98, opacity: 0.95 });
@@ -123,6 +120,9 @@ export function BurgerStorySection({
           if (shadow) gsap.set(shadow, { scale: 0.72, opacity: 0.35 });
           if (aura) gsap.set(aura, { scale: 0.75, opacity: 0.16 });
           gsap.set(stage, { scale: 0.98, y: 0 });
+          if (progressBarRef.current) {
+            gsap.set(progressBarRef.current, { scaleX: 0.05 });
+          }
 
           const tl = gsap.timeline({
             defaults: { ease: 'power2.inOut' },
@@ -133,30 +133,28 @@ export function BurgerStorySection({
               scrub: 0.6,
               onUpdate: (self) => {
                 const p = self.progress;
-                const nextStage = p < 0.25 ? 0 : p < 0.52 ? 1 : p < 0.78 ? 2 : 3;
-                setActiveStage((prev) => (prev === nextStage ? prev : nextStage));
+                if (progressBarRef.current) {
+                  progressBarRef.current.style.transform = `scaleX(${Math.max(0.05, p)})`;
+                }
+                const nextSlide = p < 0.25 ? 0 : p < 0.52 ? 1 : p < 0.78 ? 2 : 3;
+                setActiveSlide((prev) => (prev === nextSlide ? prev : nextSlide));
                 const nextAssembled = p >= 0.85;
                 setAssembled((prev) => (prev === nextAssembled ? prev : nextAssembled));
               },
             },
           });
 
-          // Stage 1 (0 -> 0.30): Bottom bun & double smash patties lock onto the base
           tl.to(bottomBun, { y: 0, duration: 0.28 }, 0.04)
             .to(patties, { y: 0, duration: 0.3 }, 0.08)
-            // Stage 2 (0.24 -> 0.52): Melting double cheddar settles over hot patties
             .to(cheddar, { y: 0, duration: 0.28 }, 0.25)
-            // Stage 3 (0.42 -> 0.72): Tomato, onions & crisp greens drop into place
             .to(tomato, { y: 0, duration: 0.26 }, 0.42)
             .to(greens, { y: 0, duration: 0.26 }, 0.48)
-            // Stage 4 (0.60 -> 0.86): Sauce & glazed sesame top bun seal the burger
             .to(sauce, { y: 0, scale: 1, opacity: 1, duration: 0.24 }, 0.58)
             .to(topBun, { y: 0, duration: 0.28 }, 0.62)
-            // Stage 5 (0.84 -> 1.0): Dramatic centerpiece reveal with warm grill aura
             .to(
               stage,
               {
-                scale: isMobile ? 1.03 : 1.07,
+                scale: isMobile ? 1.04 : 1.08,
                 y: 0,
                 duration: 0.16,
                 ease: 'power2.out',
@@ -168,7 +166,7 @@ export function BurgerStorySection({
             tl.to(shadow, { scale: 1.05, opacity: 0.88, duration: 0.55 }, 0.35);
           }
           if (aura) {
-            tl.to(aura, { scale: 1.2, opacity: 0.65, duration: 0.35 }, 0.65);
+            tl.to(aura, { scale: 1.24, opacity: 0.68, duration: 0.35 }, 0.65);
           }
         }
       );
@@ -177,28 +175,16 @@ export function BurgerStorySection({
     return () => ctx.revert();
   }, [reducedMotion]);
 
-  const scrollToStage = (targetProgress: number) => {
-    const section = sectionRef.current;
-    if (!section) return;
-    const rect = section.getBoundingClientRect();
-    const sectionTop = window.scrollY + rect.top;
-    const scrollableDistance = Math.max(1, section.offsetHeight - window.innerHeight);
-    window.scrollTo({
-      top: sectionTop + scrollableDistance * targetProgress,
-      behavior: reducedMotion ? 'auto' : 'smooth',
-    });
-  };
-
   const priceDisplay = signatureItem ? formatMoney(signatureItem.priceUsd, currency) : '$13.00';
-  const currentChapter = CHAPTERS[activeStage] || CHAPTERS[0];
+  const currentSlide = WELCOME_SLIDES[activeSlide] || WELCOME_SLIDES[0];
 
   return (
     <section
       id="burger-story"
       ref={sectionRef}
-      aria-label="Assemblage signature du burger Maison Smash"
+      aria-label="Accueil et présentation Maison Smash"
       className={`scroll-mt-16 relative bg-[#0E0E11] text-white border-b border-zinc-800/80 ${
-        reducedMotion ? 'py-14 sm:py-24' : 'h-[230vh] sm:h-[265vh] lg:h-[310vh]'
+        reducedMotion ? 'py-14 sm:py-24' : 'h-[250vh] sm:h-[280vh] lg:h-[310vh]'
       }`}
     >
       <div
@@ -213,173 +199,81 @@ export function BurgerStorySection({
           className="absolute inset-0 pointer-events-none opacity-65"
           style={{
             background:
-              'radial-gradient(circle at 50% 44%, rgba(217,35,35,0.12) 0%, rgba(14,14,17,0.94) 62%, #0E0E11 100%)',
+              'radial-gradient(circle at 60% 48%, rgba(217,35,35,0.13) 0%, rgba(14,14,17,0.94) 60%, #0E0E11 100%)',
           }}
           aria-hidden="true"
         />
 
-        <div className="relative z-10 w-full h-full max-w-7xl xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 py-4 sm:py-6 lg:py-10 flex flex-col lg:grid lg:grid-cols-12 lg:gap-10 lg:items-center justify-between">
-          {/* Mobile Header Row (strictly isolated above the burger stage so nothing ever overlaps) */}
-          <div className="lg:hidden shrink-0 relative z-20 text-center">
-            <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-400">
-              L’Atelier Maison Smash
-            </p>
-            <h2
-              className="font-display text-xl sm:text-2xl font-extrabold text-white tracking-tight"
-              style={{ textWrap: 'balance' }}
-            >
-              Chaque strate saisie à la seconde près.
-            </h2>
-          </div>
+        <div className="relative z-10 w-full h-full max-w-7xl xl:max-w-[1400px] mx-auto px-5 sm:px-6 lg:px-10 py-5 sm:py-8 lg:py-10 flex flex-col lg:grid lg:grid-cols-12 lg:gap-12 lg:items-center justify-between">
+          {/* Typographic Welcome Slideshow (No buttons, no boxes — pure floating words) */}
+          <div className="lg:col-span-6 lg:order-1 shrink-0 relative z-20 flex flex-col justify-center text-center lg:text-left">
+            <div className="min-h-[120px] sm:min-h-[145px] lg:min-h-[250px] flex flex-col justify-center">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSlide.index}
+                  initial={
+                    reducedMotion
+                      ? { opacity: 1 }
+                      : { opacity: 0, y: 20, filter: 'blur(6px)' }
+                  }
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  exit={
+                    reducedMotion
+                      ? { opacity: 1 }
+                      : { opacity: 0, y: -16, filter: 'blur(6px)' }
+                  }
+                  transition={{ duration: 0.42, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <p className="text-[11px] sm:text-xs font-medium uppercase tracking-[0.22em] text-[#F59E0B] mb-2.5 sm:mb-4">
+                    {currentSlide.kicker}
+                  </p>
 
-          {/* Center/Right 3D Burger Stage — sits in its own isolated flex lane on mobile */}
-          <div className="lg:col-span-7 lg:order-2 flex-1 min-h-0 flex flex-col items-center justify-center relative py-9 sm:py-12 lg:py-0 overflow-hidden lg:overflow-visible">
-            <div
-              ref={stageRef}
-              className="relative flex items-center justify-center will-change-transform"
-            >
-              <BurgerAssemblyArt setLayerRef={setLayerRef} />
-            </div>
-
-            {/* Desktop unboxed centerpiece caption */}
-            <div
-              className={`hidden lg:block mt-2 text-center transition-all duration-500 ${
-                assembled ? 'opacity-100 translate-y-0' : 'opacity-70 translate-y-1'
-              }`}
-            >
-              <p className="text-xs uppercase tracking-widest text-zinc-400">
-                {assembled
-                  ? 'Assemblage complet · Prêt à saisir'
-                  : 'Défilez pour assembler les 7 strates'}
-              </p>
-              <p className="font-display text-lg font-bold text-white mt-0.5">
-                Signature Maison Smash ·{' '}
-                <span className="font-mono tabular-nums text-[#F59E0B]">{priceDisplay}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Left Narrative & Controls — strictly isolated below the burger stage on mobile */}
-          <div className="lg:col-span-5 lg:order-1 shrink-0 relative z-20">
-            <div className="hidden lg:block">
-              <p className="text-xs font-medium uppercase tracking-widest text-zinc-400 mb-2.5">
-                Anatomie du signature · Synchronisé au défilement
-              </p>
-              <h2
-                className="font-display text-3xl lg:text-4xl font-extrabold text-white tracking-tight leading-[1.08] mb-3.5"
-                style={{ textWrap: 'balance' }}
-              >
-                Chaque strate saisie à la seconde près.
-              </h2>
-              <p className="text-sm text-zinc-300 leading-relaxed mb-6 max-w-lg">
-                Faites défiler pour assembler notre Signature Maison Smash couche par couche : de la
-                croûte caramélisée sur plancha jusqu’à la brioche toastée.
-              </p>
-            </div>
-
-            {/* Mobile / Tablet Compact Chapter Stepper + Active Detail Card */}
-            <div className="lg:hidden space-y-2">
-              <div
-                className="grid grid-cols-4 gap-1.5"
-                role="tablist"
-                aria-label="Étapes de l’assemblage"
-              >
-                {CHAPTERS.map((chapter, idx) => {
-                  const isActive = activeStage === idx;
-                  const isPassed = activeStage > idx;
-                  return (
-                    <button
-                      key={chapter.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => scrollToStage(chapter.targetProgress)}
-                      className={`min-h-[36px] rounded-lg border font-mono tabular-nums text-xs font-semibold transition-colors cursor-pointer ${
-                        isActive
-                          ? 'bg-[#D92323] border-[#D92323] text-white'
-                          : isPassed
-                            ? 'bg-zinc-900 border-zinc-700 text-zinc-200'
-                            : 'bg-zinc-950/70 border-zinc-800 text-zinc-400'
-                      }`}
-                    >
-                      {chapter.id}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="bg-zinc-900/95 border border-zinc-800 rounded-xl p-3 sm:p-4">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="font-mono tabular-nums text-xs font-semibold text-[#D92323]">
-                    Étape {currentChapter.id} / 04
-                  </span>
-                  <span className="text-[11px] font-medium text-zinc-400">
-                    {assembled ? 'Assemblage complet' : 'Défilez pour assembler'}
-                  </span>
-                </div>
-                <p className="font-display text-sm sm:text-base font-bold text-white leading-snug">
-                  {currentChapter.title}
-                </p>
-                <p className="text-xs text-zinc-300 leading-relaxed mt-0.5 line-clamp-2">
-                  {currentChapter.detail}
-                </p>
-              </div>
-            </div>
-
-            {/* Desktop 4 synchronized chapters list */}
-            <div className="hidden lg:grid grid-cols-1 gap-3">
-              {CHAPTERS.map((chapter, idx) => {
-                const isActive = activeStage === idx;
-                const isPassed = activeStage > idx;
-                return (
-                  <button
-                    key={chapter.id}
-                    type="button"
-                    onClick={() => scrollToStage(chapter.targetProgress)}
-                    className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-zinc-900/95 border-[#D92323]/70 shadow-[0_8px_28px_-12px_rgba(217,35,35,0.45)]'
-                        : isPassed
-                          ? 'bg-zinc-900/45 border-zinc-800 text-zinc-300 hover:border-zinc-700'
-                          : 'bg-zinc-950/40 border-zinc-800/70 text-zinc-400 hover:border-zinc-700'
-                    }`}
+                  <h2
+                    className="font-display font-extrabold text-white tracking-tight leading-[1.06] mb-3 sm:mb-5 mx-auto lg:mx-0 max-w-xl"
+                    style={{
+                      fontSize: 'clamp(1.5rem, 3.8vw, 3.35rem)',
+                      textWrap: 'balance',
+                    }}
                   >
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="font-mono tabular-nums text-xs font-semibold text-[#D92323]">
-                        {chapter.id}
-                      </span>
-                      <span className="text-[11px] font-medium text-zinc-400">
-                        {isActive ? 'En cours' : isPassed ? 'Assemblé' : 'Étape'}
-                      </span>
-                    </div>
-                    <p className="font-display text-sm font-bold text-white leading-snug">
-                      {chapter.title}
-                    </p>
-                    <p
-                      className={`text-xs text-zinc-400 leading-relaxed mt-1 ${
-                        isActive ? 'opacity-100' : 'opacity-70'
-                      }`}
-                    >
-                      {chapter.detail}
-                    </p>
-                  </button>
-                );
-              })}
+                    {currentSlide.headline}
+                  </h2>
+
+                  <p className="text-xs sm:text-sm lg:text-base text-zinc-400 tracking-wide">
+                    {currentSlide.subline}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
             </div>
 
-            {/* Action row */}
-            <div className="mt-2.5 sm:mt-4 lg:mt-5 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+            {/* Quiet hairline scroll progress + index (desktop) */}
+            <div className="hidden lg:flex items-center gap-4 mt-8 max-w-md">
+              <span className="font-mono tabular-nums text-xs text-zinc-400">
+                {currentSlide.index} / 04
+              </span>
+              <div className="flex-1 h-[1.5px] bg-zinc-800 overflow-hidden">
+                <div
+                  ref={progressBarRef}
+                  className="h-full bg-[#D92323] origin-left will-change-transform"
+                  style={{ transform: reducedMotion ? 'scaleX(1)' : 'scaleX(0.05)' }}
+                />
+              </div>
+              <span className="text-xs text-zinc-500">
+                {assembled ? 'Prêt' : 'Défilez'}
+              </span>
+            </div>
+
+            {/* Desktop action row */}
+            <div className="hidden lg:flex flex-wrap items-center gap-4 mt-8">
               {signatureItem && (
                 <MagneticButton
-                  wrapperClassName="w-full sm:w-auto inline-flex"
                   onClick={() => onSelectProduct(signatureItem)}
-                  className={`ms-btn-glint w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-3 min-h-[44px] rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`ms-btn-glint inline-flex items-center gap-2.5 px-6 py-3.5 min-h-[46px] rounded-lg text-sm font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     assembled
                       ? 'bg-[#D92323] text-white hover:bg-[#B81C1C] shadow-lg shadow-[#D92323]/25'
-                      : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                      : 'bg-zinc-800/90 text-white hover:bg-zinc-700'
                   }`}
                 >
-                  <span>Commander ce burger</span>
+                  <span>Commander le signature</span>
                   <span className="font-mono tabular-nums text-xs opacity-90">
                     · {priceDisplay}
                   </span>
@@ -388,12 +282,70 @@ export function BurgerStorySection({
               )}
               <a
                 href="#specialites"
-                className="hidden sm:inline-flex items-center justify-center gap-1.5 px-4 py-3 min-h-[44px] text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-4 py-3 min-h-[46px] text-sm font-semibold text-zinc-300 hover:text-white transition-colors whitespace-nowrap shrink-0"
               >
-                <span>Voir nos spécialités</span>
-                <ArrowDown className="w-3.5 h-3.5" strokeWidth={2} />
+                <span>Découvrir nos spécialités</span>
+                <ArrowDown className="w-4 h-4" strokeWidth={2} />
               </a>
             </div>
+          </div>
+
+          {/* Straight Centered 3D Burger Stage */}
+          <div className="lg:col-span-6 lg:order-2 flex-1 min-h-0 flex flex-col items-center justify-center relative py-8 sm:py-10 lg:py-0 overflow-hidden lg:overflow-visible">
+            <div
+              ref={stageRef}
+              className="relative flex items-center justify-center will-change-transform"
+            >
+              <BurgerAssemblyArt setLayerRef={setLayerRef} />
+            </div>
+
+            {/* Desktop subtle signature line beneath assembled burger */}
+            <div
+              className={`hidden lg:block mt-3 text-center transition-opacity duration-500 ${
+                assembled ? 'opacity-100' : 'opacity-50'
+              }`}
+            >
+              <p className="font-display text-base font-bold text-white">
+                Signature Maison Smash ·{' '}
+                <span className="font-mono tabular-nums text-[#F59E0B]">{priceDisplay}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Mobile compact footer action */}
+          <div className="lg:hidden shrink-0 relative z-20 flex flex-col items-center gap-2.5 pt-1">
+            <div className="flex items-center gap-3 w-full max-w-xs">
+              <span className="font-mono tabular-nums text-[11px] text-zinc-400">
+                {currentSlide.index} / 04
+              </span>
+              <div className="flex-1 h-[1.5px] bg-zinc-800 overflow-hidden">
+                <div
+                  className="h-full bg-[#D92323] origin-left transition-transform duration-300"
+                  style={{ transform: `scaleX(${(activeSlide + 1) / 4})` }}
+                />
+              </div>
+              <span className="text-[11px] text-zinc-400">
+                {assembled ? 'Prêt' : 'Défilez'}
+              </span>
+            </div>
+
+            {signatureItem && (
+              <MagneticButton
+                wrapperClassName="w-full max-w-xs inline-flex"
+                onClick={() => onSelectProduct(signatureItem)}
+                className={`ms-btn-glint w-full inline-flex items-center justify-center gap-2 px-5 py-3 min-h-[44px] rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  assembled
+                    ? 'bg-[#D92323] text-white hover:bg-[#B81C1C] shadow-lg shadow-[#D92323]/25'
+                    : 'bg-zinc-800/90 text-white hover:bg-zinc-700'
+                }`}
+              >
+                <span>Commander le signature</span>
+                <span className="font-mono tabular-nums text-xs opacity-90">
+                  · {priceDisplay}
+                </span>
+                <ArrowRight className="w-4 h-4" strokeWidth={2} />
+              </MagneticButton>
+            )}
           </div>
         </div>
       </div>

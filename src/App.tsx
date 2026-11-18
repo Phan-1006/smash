@@ -10,7 +10,9 @@ import {
 import { Check } from 'lucide-react';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { AdminPanel } from './components/AdminPanel';
+import { BurgerStorySection } from './components/BurgerStorySection';
 import { CartDrawer } from './components/CartDrawer';
+import { CatalogCtaSection } from './components/CatalogCtaSection';
 import { CheckoutModal } from './components/CheckoutModal';
 import { CraftSection } from './components/CraftSection';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -20,7 +22,8 @@ import { MenuSection } from './components/MenuSection';
 import { Navbar } from './components/Navbar';
 import { OrdersPanel } from './components/OrdersPanel';
 import { ProductModal } from './components/ProductModal';
-import { MENU_ITEMS, MenuItem } from './data/menu';
+import { ShowcaseSection } from './components/ShowcaseSection';
+import { MENU_ITEMS, MenuCategory, MenuItem } from './data/menu';
 import { auth, googleProvider, testFirestoreConnection } from './firebase';
 import {
   clearUserCart,
@@ -71,6 +74,7 @@ export default function App() {
   const [adminOrders, setAdminOrders] = useState<OrderDoc[]>([]);
 
   const [currency, setCurrency] = useState<CurrencyCode>('USD');
+  const [menuCategory, setMenuCategory] = useState<MenuCategory>('all');
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>('delivery');
   const [promoCode, setPromoCode] = useState<string | null>(null);
 
@@ -116,6 +120,22 @@ export default function App() {
     }
     return MENU_ITEMS;
   }, [cloudProducts]);
+
+  const signatureBurger = useMemo(
+    () =>
+      activeMenu.find((item) => item.id === 'maison-triple-crust') ||
+      activeMenu.find((item) => item.category === 'burgers') ||
+      activeMenu[0],
+    [activeMenu]
+  );
+
+  const handleExploreCategory = useCallback((category: MenuCategory) => {
+    setMenuCategory(category);
+    const menuEl = document.getElementById('menu');
+    if (menuEl) {
+      menuEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   // Persist guest cart locally while signed out
   useEffect(() => {
@@ -401,15 +421,33 @@ export default function App() {
           />
 
           <main className="flex-1">
-            <HeroSection />
+            <HeroSection
+              signatureItem={signatureBurger}
+              currency={currency}
+              onSelectProduct={setSelectedProduct}
+            />
+            <BurgerStorySection
+              signatureItem={signatureBurger}
+              currency={currency}
+              onSelectProduct={setSelectedProduct}
+            />
+            <ShowcaseSection
+              items={activeMenu}
+              currency={currency}
+              onSelectProduct={setSelectedProduct}
+              onExploreCategory={handleExploreCategory}
+            />
+            <CraftSection />
+            <CatalogCtaSection onExploreCategory={handleExploreCategory} />
             <MenuSection
               items={activeMenu}
               currency={currency}
+              activeCategory={menuCategory}
+              onChangeCategory={setMenuCategory}
               onChangeCurrency={setCurrency}
               onSelectProduct={setSelectedProduct}
               onQuickAdd={handleQuickAdd}
             />
-            <CraftSection />
           </main>
 
           <Footer />

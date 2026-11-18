@@ -35,7 +35,19 @@ export function Footer() {
           <p className="text-center sm:text-left">
             © {new Date().getFullYear()} Maison Smash. Tous droits réservés.
           </p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-6">
+            <a
+              href="#burger-story"
+              className="ms-link-underline hover:text-white transition-colors py-1"
+            >
+              L’Atelier
+            </a>
+            <a
+              href="#specialites"
+              className="ms-link-underline hover:text-white transition-colors py-1"
+            >
+              Spécialités
+            </a>
             <a href="#menu" className="ms-link-underline hover:text-white transition-colors py-1">
               La Carte
             </a>

@@ -4,10 +4,13 @@ import { motion } from 'motion/react';
 import { formatMoney, MenuCategory, MenuItem } from '../data/menu';
 import type { CurrencyCode } from '../types/ecommerce';
 import { FoodImage } from './FoodImage';
+import { TiltCard } from './TiltCard';
 
 interface MenuSectionProps {
   items: MenuItem[];
   currency: CurrencyCode;
+  activeCategory?: MenuCategory;
+  onChangeCategory?: (category: MenuCategory) => void;
   onChangeCurrency: (currency: CurrencyCode) => void;
   onSelectProduct: (item: MenuItem) => void;
   onQuickAdd: (item: MenuItem) => void;
@@ -25,12 +28,20 @@ const CATEGORIES: { id: MenuCategory; label: string }[] = [
 export function MenuSection({
   items,
   currency,
+  activeCategory: controlledCategory,
+  onChangeCategory,
   onChangeCurrency,
   onSelectProduct,
   onQuickAdd,
 }: MenuSectionProps) {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>('all');
+  const [internalCategory, setInternalCategory] = useState<MenuCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const activeCategory = controlledCategory ?? internalCategory;
+  const setActiveCategory = (cat: MenuCategory) => {
+    setInternalCategory(cat);
+    onChangeCategory?.(cat);
+  };
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -46,7 +57,7 @@ export function MenuSection({
   }, [items, activeCategory, searchQuery]);
 
   return (
-    <section id="menu" className="bg-white py-12 sm:py-16 lg:py-20">
+    <section id="menu" className="scroll-mt-16 bg-white py-10 sm:py-16 lg:py-20">
       <div className="max-w-7xl xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10">
         {/* Header & Currency Switcher */}
         <motion.div
@@ -166,7 +177,7 @@ export function MenuSection({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-8">
             {filteredItems.map((item, idx) => (
-              <motion.article
+              <motion.div
                 key={item.id}
                 layout
                 initial={{ opacity: 0, y: 18 }}
@@ -177,100 +188,104 @@ export function MenuSection({
                   delay: Math.min(idx * 0.04, 0.24),
                   ease: [0.16, 1, 0.3, 1],
                 }}
-                className={`group ms-product-card flex flex-col bg-white rounded-2xl border border-zinc-200 overflow-hidden ${
-                  item.available
-                    ? 'hover:border-zinc-300'
-                    : 'opacity-65'
-                }`}
+                className="h-full"
               >
-                {/* 4:3 Product Photo with CSS sheen sweep */}
-                <button
-                  type="button"
-                  disabled={!item.available}
-                  onClick={() => onSelectProduct(item)}
-                  className="ms-card-media relative aspect-[4/3] w-full bg-[#F5F5F7] overflow-hidden text-left cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <FoodImage
-                    src={item.image}
-                    alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                  />
-                </button>
-
-                {/* Card Body */}
-                <div className="p-4 sm:p-5 flex-1 flex flex-col">
-                  {/* Unboxed quiet metadata line */}
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">
-                    <span>{item.categoryLabel}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="tabular-nums">{item.calories}</span>
-                    {!item.available ? (
-                      <>
-                        <span aria-hidden="true">·</span>
-                        <span className="text-zinc-600 font-semibold">Épuisé</span>
-                      </>
-                    ) : (
-                      item.tag && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-[#D92323] font-semibold">{item.tag}</span>
-                        </>
-                      )
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!item.available}
-                    onClick={() => onSelectProduct(item)}
-                    className="text-left cursor-pointer disabled:cursor-not-allowed"
+                <TiltCard maxTiltDeg={3} className="h-full rounded-2xl">
+                  <article
+                    className={`group ms-product-card h-full flex flex-col bg-white rounded-2xl border border-zinc-200 overflow-hidden ${
+                      item.available ? 'hover:border-zinc-300' : 'opacity-65'
+                    }`}
                   >
-                    <h3 className="font-display text-lg font-bold text-[#141414] group-hover:text-[#D92323] transition-colors mb-1.5 sm:mb-2">
-                      {item.name}
-                    </h3>
-                  </button>
+                    {/* 4:3 Product Photo with CSS sheen sweep */}
+                    <button
+                      type="button"
+                      disabled={!item.available}
+                      onClick={() => onSelectProduct(item)}
+                      className="ms-card-media relative aspect-[4/3] w-full bg-[#F5F5F7] overflow-hidden text-left cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <FoodImage
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                      />
+                    </button>
 
-                  <p className="text-sm text-zinc-600 leading-relaxed line-clamp-2 mb-4 sm:mb-5 flex-1">
-                    {item.description}
-                  </p>
+                    {/* Card Body */}
+                    <div className="p-4 sm:p-5 flex-1 flex flex-col">
+                      {/* Unboxed quiet metadata line */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-medium uppercase tracking-wider text-zinc-500 mb-2">
+                        <span>{item.categoryLabel}</span>
+                        <span aria-hidden="true">·</span>
+                        <span className="tabular-nums">{item.calories}</span>
+                        {!item.available ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-zinc-600 font-semibold">Épuisé</span>
+                          </>
+                        ) : (
+                          item.tag && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="text-[#D92323] font-semibold">{item.tag}</span>
+                            </>
+                          )
+                        )}
+                      </div>
 
-                  {/* Price & Quick Add Row */}
-                  <div className="pt-3.5 sm:pt-4 border-t border-zinc-100 flex items-center justify-between gap-2 sm:gap-3">
-                    <div className="min-w-0">
-                      <p className="font-mono tabular-nums text-base font-semibold text-[#141414] truncate">
-                        {formatMoney(item.priceUsd, currency)}
-                      </p>
-                      {item.supportsCombo && (
-                        <p className="text-xs text-zinc-500 truncate">
-                          Menu +{formatMoney(item.comboExtraUsd, currency)}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                       <button
                         type="button"
                         disabled={!item.available}
                         onClick={() => onSelectProduct(item)}
-                        className="px-2.5 sm:px-3 min-h-[40px] py-2 text-xs font-semibold text-zinc-700 hover:text-[#141414] hover:bg-[#F5F5F7] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40"
+                        className="text-left cursor-pointer disabled:cursor-not-allowed"
                       >
-                        Options
+                        <h3 className="font-display text-lg font-bold text-[#141414] group-hover:text-[#D92323] transition-colors mb-1.5 sm:mb-2">
+                          {item.name}
+                        </h3>
                       </button>
-                      <motion.button
-                        type="button"
-                        disabled={!item.available}
-                        whileTap={{ scale: 0.94 }}
-                        onClick={() => onQuickAdd(item)}
-                        aria-label={`Ajouter ${item.name} au panier`}
-                        className="ms-btn-glint inline-flex items-center gap-1.5 px-3 sm:px-3.5 min-h-[40px] py-2 bg-[#141414] text-white text-xs font-semibold rounded-lg hover:bg-[#D92323] transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:hover:bg-[#141414]"
-                      >
-                        <Plus className="w-3.5 h-3.5" strokeWidth={2.2} />
-                        <span>Ajouter</span>
-                      </motion.button>
+
+                      <p className="text-sm text-zinc-600 leading-relaxed line-clamp-2 mb-4 sm:mb-5 flex-1">
+                        {item.description}
+                      </p>
+
+                      {/* Price & Quick Add Row */}
+                      <div className="pt-3.5 sm:pt-4 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                        <div className="min-w-0">
+                          <p className="font-mono tabular-nums text-sm sm:text-base font-semibold text-[#141414] truncate">
+                            {formatMoney(item.priceUsd, currency)}
+                          </p>
+                          {item.supportsCombo && (
+                            <p className="text-[11px] sm:text-xs text-zinc-500 truncate">
+                              Menu +{formatMoney(item.comboExtraUsd, currency)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
+                          <button
+                            type="button"
+                            disabled={!item.available}
+                            onClick={() => onSelectProduct(item)}
+                            className="px-2.5 sm:px-3 min-h-[40px] py-2 text-xs font-semibold text-zinc-700 hover:text-[#141414] hover:bg-[#F5F5F7] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40"
+                          >
+                            Options
+                          </button>
+                          <motion.button
+                            type="button"
+                            disabled={!item.available}
+                            whileTap={{ scale: 0.94 }}
+                            onClick={() => onQuickAdd(item)}
+                            aria-label={`Ajouter ${item.name} au panier`}
+                            className="ms-btn-glint inline-flex items-center gap-1.5 px-3 sm:px-3.5 min-h-[40px] py-2 bg-[#141414] text-white text-xs font-semibold rounded-lg hover:bg-[#D92323] transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:hover:bg-[#141414]"
+                          >
+                            <Plus className="w-3.5 h-3.5" strokeWidth={2.2} />
+                            <span>Ajouter</span>
+                          </motion.button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </motion.article>
+                  </article>
+                </TiltCard>
+              </motion.div>
             ))}
           </div>
         )}

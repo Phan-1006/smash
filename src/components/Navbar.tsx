@@ -64,19 +64,25 @@ export function Navbar({
         {/* Zone 2: Clean single-line navigation links (tablet/desktop) */}
         <nav
           aria-label="Navigation principale"
-          className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-medium text-zinc-600"
+          className="hidden md:flex items-center gap-5 lg:gap-7 text-sm font-medium text-zinc-600"
         >
+          <a
+            href="#burger-story"
+            className="ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
+          >
+            L’Atelier
+          </a>
+          <a
+            href="#specialites"
+            className="hidden lg:inline-block ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
+          >
+            Spécialités
+          </a>
           <a
             href="#menu"
             className="ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
           >
             La Carte
-          </a>
-          <a
-            href="#savoir-faire"
-            className="ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
-          >
-            Savoir-Faire
           </a>
           <button
             type="button"
@@ -145,8 +151,22 @@ export function Navbar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="md:hidden border-t border-zinc-200 bg-white px-4 py-3 space-y-1 shadow-lg"
+            className="md:hidden border-t border-zinc-200 bg-white px-4 py-3 space-y-1 shadow-lg max-h-[calc(100svh-4rem)] overflow-y-auto"
           >
+            <a
+              href="#burger-story"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
+            >
+              L’Atelier Burger
+            </a>
+            <a
+              href="#specialites"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
+            >
+              Spécialités
+            </a>
             <a
               href="#menu"
               onClick={() => setMobileMenuOpen(false)}

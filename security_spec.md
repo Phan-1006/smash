@@ -4,6 +4,7 @@
 1. **Identity & PII Isolation**: A `UserProfile` at `/users/{userId}` can only be read, created, or updated by the authenticated, email-verified user whose `request.auth.uid == userId` and `incoming().uid == userId`. No user can list `/users`.
 2. **Cart Ownership (Master Gate)**: A `CartItem` at `/users/{userId}/cart/{itemId}` belongs exclusively to `{userId}`. Reads, lists, creates, updates, and deletes require `request.auth.uid == userId`, verified email, valid ID format, and bounded array/string sizes.
 3. **Order Integrity & Terminal State Locking**: An `Order` at `/orders/{orderId}` can only be created by an authenticated, email-verified user setting `userId == request.auth.uid`, `paymentStatus == 'PENDING'`, and `orderStatus == 'AWAITING_PAYMENT'`, with server timestamps (`request.time`). List queries are strictly enforced via `resource.data.userId == request.auth.uid`. Once `orderStatus` reaches `'DELIVERED'` or `'CANCELLED'`, all further client updates are denied.
+4. **Storefront Settings Governance**: `SiteSettings` at `/site_settings/main` is publicly gettable (no blanket listing) so all shoppers see customized address/branding/posters, while `create` and `update` require verified `isAdmin()` with strict field schema/length bounds and server `request.time`. Deletes and arbitrary doc IDs (`settingId != 'main'`) are denied.
 
 ## 2. The "Dirty Dozen" Attack Payloads
 1. **Unauthenticated Order Creation**: `{ "id": "ord_1", "userId": "anon", ... }` -> `PERMISSION_DENIED` (`isSignedIn()`).
@@ -18,3 +19,5 @@
 10. **Terminal State Resurrection**: Updating an order whose `orderStatus == 'CANCELLED'` back to `'PREPARING'` -> `PERMISSION_DENIED`.
 11. **Value Poisoning on Update**: Updating `paymentStatus` to `12345` (number) or invalid string `'HACKED'` -> `PERMISSION_DENIED` (`isValidOrder` runs on update).
 12. **Unbounded Array / Denial-of-Wallet**: Submitting `itemsSummary` with 100 entries or a 10KB string -> `PERMISSION_DENIED`.
+13. **Non-Admin SiteSettings Tampering**: Authenticated customer attempting to write `/site_settings/main` or inject oversized image base64 (>240 chars) -> `PERMISSION_DENIED`.
+

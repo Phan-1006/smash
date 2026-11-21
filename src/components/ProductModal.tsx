@@ -8,6 +8,7 @@ import { FoodImage } from './FoodImage';
 interface ProductModalProps {
   item: MenuItem | null;
   currency: CurrencyCode;
+  usdToCdfRate?: number;
   onClose: () => void;
   onAddToCart: (payload: {
     item: MenuItem;
@@ -19,7 +20,13 @@ interface ProductModalProps {
   }) => void;
 }
 
-export function ProductModal({ item, currency, onClose, onAddToCart }: ProductModalProps) {
+export function ProductModal({
+  item,
+  currency,
+  usdToCdfRate,
+  onClose,
+  onAddToCart,
+}: ProductModalProps) {
   const [variant, setVariant] = useState<'Solo' | 'Menu Complet'>('Solo');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -135,8 +142,8 @@ export function ProductModal({ item, currency, onClose, onAddToCart }: ProductMo
                             }`}
                           >
                             {option === 'Solo'
-                              ? formatMoney(item.priceUsd, currency)
-                              : `+${formatMoney(item.comboExtraUsd, currency)} (Frites + Boisson)`}
+                              ? formatMoney(item.priceUsd, currency, usdToCdfRate)
+                              : `+${formatMoney(item.comboExtraUsd, currency, usdToCdfRate)} (Frites + Boisson)`}
                           </p>
                         </button>
                       );
@@ -178,7 +185,7 @@ export function ProductModal({ item, currency, onClose, onAddToCart }: ProductMo
                             {addon.label}
                           </span>
                           <span className="font-mono tabular-nums text-xs font-semibold text-zinc-600">
-                            +{formatMoney(addon.priceUsd, currency)}
+                            +{formatMoney(addon.priceUsd, currency, usdToCdfRate)}
                           </span>
                         </button>
                       );
@@ -239,7 +246,7 @@ export function ProductModal({ item, currency, onClose, onAddToCart }: ProductMo
               >
                 <span className="truncate">Ajouter au panier</span>
                 <span className="font-mono tabular-nums shrink-0">
-                  {formatMoney(lineTotalUsd, currency)}
+                  {formatMoney(lineTotalUsd, currency, usdToCdfRate)}
                 </span>
               </motion.button>
             </div>

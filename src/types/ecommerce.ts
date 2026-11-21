@@ -108,3 +108,28 @@ export interface MaishaPayConfigResponse {
   modeLabel: 'LIVE' | 'SANDBOX';
   supportedMobileProviders: string[];
 }
+
+export interface SiteSettingsDoc {
+  id: 'main';
+  brandName: string;
+  storeCity: string;
+  storeAddress: string;
+  openingHours: string;
+  contactPhone: string;
+  contactEmail: string;
+  heroKicker: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  heroMainImage: string;
+  heroMacroImage: string;
+  pizzaShowcaseImage: string;
+  crispyShowcaseImage: string;
+  friesShowcaseImage: string;
+  drinksShowcaseImage: string;
+  deliveryFeeUsd: number;
+  freeDeliveryThresholdUsd: number;
+  usdToCdfRate: number;
+  enableCdfCurrency: boolean;
+  updatedAt?: Timestamp;
+}
+

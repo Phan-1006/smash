@@ -30,6 +30,19 @@ export function sanitizeId(raw: string, maxLen = 64): string {
   return cleaned.slice(0, maxLen) || 'item_1';
 }
 
+function isTransientOfflineError(err: unknown): boolean {
+  const code =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : '';
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    code === 'unavailable' ||
+    code === 'deadline-exceeded' ||
+    msg.toLowerCase().includes('offline')
+  );
+}
+
 // ==========================================
 // PRODUCTS CATALOG (PUBLIC READ, ADMIN WRITE)
 // ==========================================
@@ -44,6 +57,10 @@ export function subscribeProducts(onData: (products: ProductDoc[]) => void): () 
       onData(list);
     },
     (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture du catalogue.');
+        return;
+      }
       handleFirestoreError(err, OperationType.LIST, path);
     }
   );
@@ -185,12 +202,7 @@ export async function ensureUserProfile(user: User): Promise<void> {
       });
     }
   } catch (err) {
-    const code =
-      typeof err === 'object' && err !== null && 'code' in err
-        ? String((err as { code?: unknown }).code)
-        : '';
-    const msg = err instanceof Error ? err.message : String(err);
-    if (code === 'unavailable' || msg.toLowerCase().includes('offline')) {
+    if (isTransientOfflineError(err)) {
       console.warn('Firestore hors ligne temporaire lors de la synchronisation du profil.');
       return;
     }
@@ -235,6 +247,10 @@ export function subscribeUserProfile(
       onData(snap.exists() ? (snap.data() as UserProfileDoc) : null);
     },
     (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture du profil.');
+        return;
+      }
       handleFirestoreError(err, OperationType.GET, path);
     }
   );
@@ -257,6 +273,10 @@ export function subscribeUserCart(
       onData(list);
     },
     (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture du panier.');
+        return;
+      }
       handleFirestoreError(err, OperationType.LIST, path);
     }
   );
@@ -429,6 +449,10 @@ export function subscribeUserOrders(
       onData(snap.docs.map((d) => d.data() as OrderDoc));
     },
     (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture des commandes.');
+        return;
+      }
       handleFirestoreError(err, OperationType.LIST, path);
     }
   );
@@ -443,7 +467,59 @@ export function subscribeAllOrdersForAdmin(onData: (orders: OrderDoc[]) => void)
       onData(snap.docs.map((d) => d.data() as OrderDoc));
     },
     (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture admin des commandes.');
+        return;
+      }
       handleFirestoreError(err, OperationType.LIST, path);
     }
   );
 }
+
+// ==========================================
+// SITE SETTINGS (PUBLIC GET, ADMIN WRITE)
+// ==========================================
+
+import { DEFAULT_SITE_SETTINGS, normalizeSiteSettings } from '../data/siteSettings';
+import type { SiteSettingsDoc } from '../types/ecommerce';
+
+export function subscribeSiteSettings(
+  onData: (settings: Omit<SiteSettingsDoc, 'updatedAt'>) => void
+): () => void {
+  const path = 'site_settings/main';
+  return onSnapshot(
+    doc(db, 'site_settings', 'main'),
+    (snap) => {
+      if (!snap.exists()) {
+        onData(DEFAULT_SITE_SETTINGS);
+        return;
+      }
+      onData(normalizeSiteSettings(snap.data() as Partial<SiteSettingsDoc>));
+    },
+    (err) => {
+      if (isTransientOfflineError(err)) {
+        console.warn('Firestore temporairement hors ligne lors de la lecture des réglages du site.');
+        return;
+      }
+      handleFirestoreError(err, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveSiteSettings(
+  settings: Partial<SiteSettingsDoc>
+): Promise<Omit<SiteSettingsDoc, 'updatedAt'>> {
+  const path = 'site_settings/main';
+  const clean = normalizeSiteSettings(settings);
+  try {
+    await setDoc(doc(db, 'site_settings', 'main'), {
+      ...clean,
+      updatedAt: serverTimestamp(),
+    });
+    return clean;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, path);
+    return clean;
+  }
+}
+

@@ -306,6 +306,101 @@ service cloud.firestore {
       }
     }
 
+    // Validation Blueprint: SiteSettings
+    function isValidSiteSettings(data, settingId) {
+      return data.keys().hasAll([
+          'id', 'brandName', 'storeCity', 'storeAddress', 'openingHours',
+          'contactPhone', 'contactEmail', 'heroKicker', 'heroTitle', 'heroSubtitle',
+          'heroMainImage', 'heroMacroImage', 'pizzaShowcaseImage',
+          'crispyShowcaseImage', 'friesShowcaseImage', 'drinksShowcaseImage',
+          'deliveryFeeUsd', 'freeDeliveryThresholdUsd', 'usdToCdfRate',
+          'enableCdfCurrency', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'brandName', 'storeCity', 'storeAddress', 'openingHours',
+          'contactPhone', 'contactEmail', 'heroKicker', 'heroTitle', 'heroSubtitle',
+          'heroMainImage', 'heroMacroImage', 'pizzaShowcaseImage',
+          'crispyShowcaseImage', 'friesShowcaseImage', 'drinksShowcaseImage',
+          'deliveryFeeUsd', 'freeDeliveryThresholdUsd', 'usdToCdfRate',
+          'enableCdfCurrency', 'updatedAt'
+        ])
+        && data.id is string
+        && data.id == 'main'
+        && data.id == settingId
+        && data.brandName is string
+        && data.brandName.size() >= 1
+        && data.brandName.size() <= 60
+        && data.storeCity is string
+        && data.storeCity.size() >= 1
+        && data.storeCity.size() <= 80
+        && data.storeAddress is string
+        && data.storeAddress.size() >= 1
+        && data.storeAddress.size() <= 240
+        && data.openingHours is string
+        && data.openingHours.size() >= 1
+        && data.openingHours.size() <= 80
+        && data.contactPhone is string
+        && data.contactPhone.size() <= 30
+        && data.contactEmail is string
+        && data.contactEmail.size() <= 160
+        && data.heroKicker is string
+        && data.heroKicker.size() >= 1
+        && data.heroKicker.size() <= 100
+        && data.heroTitle is string
+        && data.heroTitle.size() >= 1
+        && data.heroTitle.size() <= 140
+        && data.heroSubtitle is string
+        && data.heroSubtitle.size() >= 1
+        && data.heroSubtitle.size() <= 320
+        && data.heroMainImage is string
+        && data.heroMainImage.size() >= 1
+        && data.heroMainImage.size() <= 240
+        && data.heroMacroImage is string
+        && data.heroMacroImage.size() >= 1
+        && data.heroMacroImage.size() <= 240
+        && data.pizzaShowcaseImage is string
+        && data.pizzaShowcaseImage.size() >= 1
+        && data.pizzaShowcaseImage.size() <= 240
+        && data.crispyShowcaseImage is string
+        && data.crispyShowcaseImage.size() >= 1
+        && data.crispyShowcaseImage.size() <= 240
+        && data.friesShowcaseImage is string
+        && data.friesShowcaseImage.size() >= 1
+        && data.friesShowcaseImage.size() <= 240
+        && data.drinksShowcaseImage is string
+        && data.drinksShowcaseImage.size() >= 1
+        && data.drinksShowcaseImage.size() <= 240
+        && data.deliveryFeeUsd is number
+        && data.deliveryFeeUsd >= 0
+        && data.deliveryFeeUsd <= 500
+        && data.freeDeliveryThresholdUsd is number
+        && data.freeDeliveryThresholdUsd >= 0
+        && data.freeDeliveryThresholdUsd <= 5000
+        && data.usdToCdfRate is number
+        && data.usdToCdfRate >= 100
+        && data.usdToCdfRate <= 100000
+        && data.enableCdfCurrency is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // Storefront Site Settings (Public get on 'main', Admin write)
+    match /site_settings/{settingId} {
+      allow get: if isValidId(settingId) && settingId == 'main';
+      allow list: if false;
+      allow create: if isAdmin()
+        && isValidId(settingId)
+        && settingId == 'main'
+        && isValidSiteSettings(incoming(), settingId)
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(settingId)
+        && settingId == 'main'
+        && isValidSiteSettings(incoming(), settingId)
+        && incoming().id == existing().id
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
     // Orders Collection (Owner + Verified Admin p9695009@gmail.com)
     match /orders/{orderId} {
       allow get: if isSignedIn()
@@ -341,3 +436,4 @@ service cloud.firestore {
     }
   }
 }
+

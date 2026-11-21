@@ -9,6 +9,8 @@ import { TiltCard } from './TiltCard';
 interface MenuSectionProps {
   items: MenuItem[];
   currency: CurrencyCode;
+  enableCdfCurrency?: boolean;
+  usdToCdfRate?: number;
   activeCategory?: MenuCategory;
   onChangeCategory?: (category: MenuCategory) => void;
   onChangeCurrency: (currency: CurrencyCode) => void;
@@ -28,6 +30,8 @@ const CATEGORIES: { id: MenuCategory; label: string }[] = [
 export function MenuSection({
   items,
   currency,
+  enableCdfCurrency = true,
+  usdToCdfRate,
   activeCategory: controlledCategory,
   onChangeCategory,
   onChangeCurrency,
@@ -57,7 +61,10 @@ export function MenuSection({
   }, [items, activeCategory, searchQuery]);
 
   return (
-    <section id="menu" className="scroll-mt-16 bg-white py-10 sm:py-16 lg:py-20">
+    <section
+      id="menu"
+      className="scroll-mt-16 bg-white py-12 sm:py-16 lg:py-24"
+    >
       <div className="max-w-7xl xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10">
         {/* Header & Currency Switcher */}
         <motion.div
@@ -97,39 +104,41 @@ export function MenuSection({
             </div>
 
             {/* Currency Segmented Toggle */}
-            <div
-              role="group"
-              aria-label="Devise d’affichage"
-              className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-[#F5F5F7] rounded-lg shrink-0 min-h-[44px]"
-            >
-              <button
-                type="button"
-                onClick={() => onChangeCurrency('USD')}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  currency === 'USD'
-                    ? 'bg-white text-[#141414] shadow-sm'
-                    : 'text-zinc-600 hover:text-[#141414]'
-                }`}
+            {enableCdfCurrency && (
+              <div
+                role="group"
+                aria-label="Devise d’affichage"
+                className="grid grid-cols-2 sm:inline-flex items-center p-1 bg-[#F5F5F7] rounded-lg shrink-0 min-h-[44px]"
               >
-                USD ($)
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeCurrency('CDF')}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  currency === 'CDF'
-                    ? 'bg-white text-[#141414] shadow-sm'
-                    : 'text-zinc-600 hover:text-[#141414]'
-                }`}
-              >
-                CDF (FC)
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => onChangeCurrency('USD')}
+                  className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    currency === 'USD'
+                      ? 'bg-[#141414] text-white shadow-sm'
+                      : 'text-zinc-600 hover:text-[#141414]'
+                  }`}
+                >
+                  USD ($)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeCurrency('CDF')}
+                  className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    currency === 'CDF'
+                      ? 'bg-[#141414] text-white shadow-sm'
+                      : 'text-zinc-600 hover:text-[#141414]'
+                  }`}
+                >
+                  CDF (FC)
+                </button>
+              </div>
+            )}
           </div>
         </motion.div>
 
         {/* Category Filter Tabs — full-bleed snap scroll on mobile */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-3 mb-7 sm:mb-8 border-b border-zinc-200 snap-x">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-3 mb-7 sm:mb-8 border-b border-zinc-300/80 snap-x">
           {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat.id;
             return (
@@ -138,7 +147,7 @@ export function MenuSection({
                 type="button"
                 onClick={() => setActiveCategory(cat.id)}
                 className={`relative px-4 min-h-[42px] py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 snap-start cursor-pointer ${
-                  isActive ? 'text-white' : 'text-zinc-600 hover:text-[#141414] hover:bg-[#F5F5F7]'
+                  isActive ? 'text-white' : 'text-zinc-700 hover:text-[#141414] hover:bg-[#F5F5F7]'
                 }`}
               >
                 {isActive && (
@@ -251,11 +260,11 @@ export function MenuSection({
                       <div className="pt-3.5 sm:pt-4 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
                         <div className="min-w-0">
                           <p className="font-mono tabular-nums text-sm sm:text-base font-semibold text-[#141414] truncate">
-                            {formatMoney(item.priceUsd, currency)}
+                            {formatMoney(item.priceUsd, currency, usdToCdfRate)}
                           </p>
                           {item.supportsCombo && (
                             <p className="text-[11px] sm:text-xs text-zinc-500 truncate">
-                              Menu +{formatMoney(item.comboExtraUsd, currency)}
+                              Menu +{formatMoney(item.comboExtraUsd, currency, usdToCdfRate)}
                             </p>
                           )}
                         </div>

@@ -14,11 +14,10 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import {
   convertUsdAmount,
-  DELIVERY_FEE_USD,
   formatMoney,
-  FREE_DELIVERY_THRESHOLD_USD,
   PROMO_CODES,
 } from '../data/menu';
+import { DEFAULT_SITE_SETTINGS } from '../data/siteSettings';
 import {
   createOrderRecord,
   sanitizeId,
@@ -31,6 +30,7 @@ import type {
   MaishaPayConfigResponse,
   PaymentMethodType,
   PaymentProviderType,
+  SiteSettingsDoc,
   UserProfileDoc,
 } from '../types/ecommerce';
 import { apiUrl, parseJsonSafe } from '../utils/api';
@@ -47,6 +47,7 @@ interface CheckoutModalProps {
   currency: CurrencyCode;
   deliveryMode: DeliveryMode;
   promoCode: string | null;
+  siteSettings?: Omit<SiteSettingsDoc, 'updatedAt'>;
   onChangeCurrency: (c: CurrencyCode) => void;
   onSignInGoogle: () => Promise<string | null>;
   onClearCart: () => Promise<void>;
@@ -69,6 +70,7 @@ export function CheckoutModal({
   currency,
   deliveryMode,
   promoCode,
+  siteSettings = DEFAULT_SITE_SETTINGS,
   onChangeCurrency,
   onSignInGoogle,
   onClearCart,
@@ -128,7 +130,7 @@ export function CheckoutModal({
         (prev) =>
           prev ||
           (deliveryMode === 'pickup'
-            ? 'Comptoir Maison Smash — Gombe, Kinshasa'
+            ? `Comptoir ${siteSettings.brandName} — ${siteSettings.storeAddress}`
             : profile?.defaultAddress || '')
       );
     }
@@ -137,7 +139,7 @@ export function CheckoutModal({
       .then((res) => parseJsonSafe<MaishaPayConfigResponse>(res))
       .then((data) => setGatewayConfig(data))
       .catch(() => setGatewayConfig(null));
-  }, [open, user, profile, deliveryMode]);
+  }, [open, user, profile, deliveryMode, siteSettings.brandName, siteSettings.storeAddress]);
 
   // Poll transaction status when awaiting Mobile Money / Card confirmation
   useEffect(() => {
@@ -181,13 +183,16 @@ export function CheckoutModal({
   const discountUsd = promoInfo ? Number((subtotalUsd * promoInfo.rate).toFixed(2)) : 0;
   const discountedSubtotalUsd = Math.max(0, subtotalUsd - discountUsd);
 
-  const qualifiesFreeDelivery = subtotalUsd >= FREE_DELIVERY_THRESHOLD_USD;
+  const qualifiesFreeDelivery =
+    siteSettings.deliveryFeeUsd <= 0 ||
+    siteSettings.freeDeliveryThresholdUsd <= 0 ||
+    subtotalUsd >= siteSettings.freeDeliveryThresholdUsd;
   const deliveryFeeUsd =
     deliveryMode === 'pickup' || items.length === 0 || qualifiesFreeDelivery
       ? 0
-      : DELIVERY_FEE_USD;
+      : siteSettings.deliveryFeeUsd;
   const totalUsd = discountedSubtotalUsd + deliveryFeeUsd;
-  const totalInCurrency = convertUsdAmount(totalUsd, currency);
+  const totalInCurrency = convertUsdAmount(totalUsd, currency, siteSettings.usdToCdfRate);
 
   const handlePhoneChange = (nextValue: string) => {
     setCustomerPhone(nextValue);
@@ -337,7 +342,7 @@ export function CheckoutModal({
         deliveryMode,
         deliveryAddress:
           deliveryMode === 'pickup'
-            ? 'Comptoir Maison Smash — Gombe, Kinshasa'
+            ? `Comptoir ${siteSettings.brandName} — ${siteSettings.storeAddress}`.slice(0, 240)
             : deliveryAddress.trim(),
         deliveryLat:
           deliveryMode === 'delivery' && sharedLocation ? sharedLocation.lat : undefined,
@@ -559,7 +564,8 @@ export function CheckoutModal({
                       'Veuillez saisir votre code PIN Mobile Money sur votre téléphone pour autoriser le débit.'}
                   </p>
                   <p className="font-mono text-xs text-zinc-500 mt-2">
-                    Référence : {activeTxRef} · Montant : {formatMoney(totalUsd, currency)}
+                    Référence : {activeTxRef} · Montant :{' '}
+                    {formatMoney(totalUsd, currency, siteSettings.usdToCdfRate)}
                   </p>
                 </div>
 
@@ -625,22 +631,24 @@ export function CheckoutModal({
                       {user.displayName} · {user.email}
                     </p>
                   </div>
-                  <div className="inline-flex self-start sm:self-auto items-center p-1 bg-white rounded-lg border border-zinc-200 shrink-0">
-                    {(['USD', 'CDF'] as const).map((code) => (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => onChangeCurrency(code)}
-                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                          currency === code
-                            ? 'bg-[#141414] text-white'
-                            : 'text-zinc-600 hover:text-[#141414]'
-                        }`}
-                      >
-                        {code}
-                      </button>
-                    ))}
-                  </div>
+                  {siteSettings.enableCdfCurrency && (
+                    <div className="inline-flex self-start sm:self-auto items-center p-1 bg-white rounded-lg border border-zinc-200 shrink-0">
+                      {(['USD', 'CDF'] as const).map((code) => (
+                        <button
+                          key={code}
+                          type="button"
+                          onClick={() => onChangeCurrency(code)}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                            currency === code
+                              ? 'bg-[#141414] text-white'
+                              : 'text-zinc-600 hover:text-[#141414]'
+                          }`}
+                        >
+                          {code}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Delivery details */}
@@ -674,7 +682,7 @@ export function CheckoutModal({
                       type="tel"
                       required
                       maxLength={30}
-                      placeholder="+243 81 000 0000"
+                      placeholder={siteSettings.contactPhone || '+243 81 000 0000'}
                       value={customerPhone}
                       onChange={(e) => handlePhoneChange(e.target.value)}
                       className="w-full min-h-[44px] px-3.5 py-2.5 text-base sm:text-sm border border-zinc-300 rounded-lg focus:border-[#141414] focus:outline-none font-mono"
@@ -900,7 +908,7 @@ export function CheckoutModal({
                         {discountUsd > 0 && ` · Code ${promoCode} appliqué`}
                       </p>
                       <p className="font-mono tabular-nums text-xl font-bold text-[#141414]">
-                        {formatMoney(totalUsd, currency)}
+                        {formatMoney(totalUsd, currency, siteSettings.usdToCdfRate)}
                       </p>
                     </div>
 

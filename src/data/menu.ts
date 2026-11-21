@@ -35,26 +35,38 @@ export const IMAGE_PRESETS: { label: string; url: string }[] = [
   { label: 'Classic Smash Burger', url: '/src/assets/images/burger_classic_smash_1794856488329.jpg' },
   { label: 'Truffle & Bacon Burger', url: '/src/assets/images/burger_truffle_bacon_1794856487896.jpg' },
   { label: 'Signature Maison Burger', url: '/src/assets/images/hero_smash_burger_1794856487440.jpg' },
+  { label: 'Smash Studio Smoke (Campaign)', url: '/src/assets/images/hero_cinematic_smash_1795260047387.jpg' },
   { label: 'Pizza Margherita Burrata', url: '/src/assets/images/pizza_margherita_burrata_1794857894126.jpg' },
   { label: 'Pizza Pepperoni Hot Honey', url: '/src/assets/images/pizza_pepperoni_hot_honey_1794857894815.jpg' },
+  { label: 'Pizza Overhead Studio', url: '/src/assets/images/pizza_overhead_editorial_1795265770611.jpg' },
   { label: 'Pizza Truffe & Champignons', url: '/src/assets/images/pizza_truffle_mushroom_1794857895107.jpg' },
   { label: 'Crispy Chicken Burger', url: '/src/assets/images/chicken_crispy_burger_1794856488933.jpg' },
   { label: 'Tenders Croustillants', url: '/src/assets/images/tenders_crispy_box_1794856488897.jpg' },
+  { label: 'Plateau Crispy & Frites (Campaign)', url: '/src/assets/images/crispy_chicken_campaign_1795265770266.jpg' },
   { label: 'Frites Coupées Main', url: '/src/assets/images/fries_loaded_box_1794856489833.jpg' },
   { label: 'Milkshake Caramel', url: '/src/assets/images/shake_vanilla_caramel_1794856489450.jpg' },
+  { label: 'Milkshake Studio Portrait', url: '/src/assets/images/milkshake_studio_campaign_1795265770716.jpg' },
 ];
 
-export function formatMoney(amountUsd: number, currency: 'USD' | 'CDF'): string {
+export function formatMoney(
+  amountUsd: number,
+  currency: 'USD' | 'CDF',
+  usdToCdfRate: number = USD_TO_CDF_RATE
+): string {
   if (currency === 'CDF') {
-    const cdf = Math.round(amountUsd * USD_TO_CDF_RATE);
+    const cdf = Math.round(amountUsd * usdToCdfRate);
     return `${cdf.toLocaleString('fr-FR')} FC`;
   }
   return `$${amountUsd.toFixed(2)}`;
 }
 
-export function convertUsdAmount(amountUsd: number, currency: 'USD' | 'CDF'): number {
+export function convertUsdAmount(
+  amountUsd: number,
+  currency: 'USD' | 'CDF',
+  usdToCdfRate: number = USD_TO_CDF_RATE
+): number {
   if (currency === 'CDF') {
-    return Math.round(amountUsd * USD_TO_CDF_RATE);
+    return Math.round(amountUsd * usdToCdfRate);
   }
   return Number(amountUsd.toFixed(2));
 }

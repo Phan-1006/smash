@@ -2,13 +2,12 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, Minus, Plus, ShoppingBag, Tag, Trash2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  DELIVERY_FEE_USD,
   formatMoney,
-  FREE_DELIVERY_THRESHOLD_USD,
   MenuItem,
   PROMO_CODES,
 } from '../data/menu';
-import type { CartItemDoc, CurrencyCode, DeliveryMode } from '../types/ecommerce';
+import { DEFAULT_SITE_SETTINGS } from '../data/siteSettings';
+import type { CartItemDoc, CurrencyCode, DeliveryMode, SiteSettingsDoc } from '../types/ecommerce';
 import { FoodImage } from './FoodImage';
 
 interface CartDrawerProps {
@@ -18,6 +17,7 @@ interface CartDrawerProps {
   currency: CurrencyCode;
   deliveryMode: DeliveryMode;
   promoCode: string | null;
+  siteSettings?: Omit<SiteSettingsDoc, 'updatedAt'>;
   onApplyPromoCode: (code: string | null) => void;
   onChangeDeliveryMode: (mode: DeliveryMode) => void;
   onClose: () => void;
@@ -34,6 +34,7 @@ export function CartDrawer({
   currency,
   deliveryMode,
   promoCode,
+  siteSettings = DEFAULT_SITE_SETTINGS,
   onApplyPromoCode,
   onChangeDeliveryMode,
   onClose,
@@ -50,14 +51,20 @@ export function CartDrawer({
   const discountUsd = promoInfo ? Number((subtotalUsd * promoInfo.rate).toFixed(2)) : 0;
   const discountedSubtotalUsd = Math.max(0, subtotalUsd - discountUsd);
 
-  const qualifiesFreeDelivery = subtotalUsd >= FREE_DELIVERY_THRESHOLD_USD;
+  const freeThreshold = siteSettings.freeDeliveryThresholdUsd;
+  const baseDeliveryFee = siteSettings.deliveryFeeUsd;
+  const usdToCdfRate = siteSettings.usdToCdfRate;
+
+  const qualifiesFreeDelivery =
+    baseDeliveryFee <= 0 || freeThreshold <= 0 || subtotalUsd >= freeThreshold;
   const deliveryFeeUsd =
     deliveryMode === 'pickup' || items.length === 0 || qualifiesFreeDelivery
       ? 0
-      : DELIVERY_FEE_USD;
+      : baseDeliveryFee;
   const totalUsd = discountedSubtotalUsd + deliveryFeeUsd;
-  const remainingForFreeDelivery = Math.max(0, FREE_DELIVERY_THRESHOLD_USD - subtotalUsd);
-  const progressRatio = Math.min(1, subtotalUsd / FREE_DELIVERY_THRESHOLD_USD);
+  const remainingForFreeDelivery = Math.max(0, freeThreshold - subtotalUsd);
+  const progressRatio =
+    qualifiesFreeDelivery || freeThreshold <= 0 ? 1 : Math.min(1, subtotalUsd / freeThreshold);
 
   const upsellItems = useMemo(() => {
     const inCartIds = new Set(items.map((i) => i.productId));
@@ -159,7 +166,7 @@ export function CartDrawer({
                     <span>
                       {qualifiesFreeDelivery
                         ? 'Livraison gratuite débloquée'
-                        : `Plus que ${formatMoney(remainingForFreeDelivery, currency)} pour la livraison offerte`}
+                        : `Plus que ${formatMoney(remainingForFreeDelivery, currency, usdToCdfRate)} pour la livraison offerte`}
                     </span>
                     <span className="font-mono font-semibold text-[#141414]">
                       {Math.round(progressRatio * 100)}%
@@ -275,7 +282,7 @@ export function CartDrawer({
                               </div>
 
                               <p className="font-mono tabular-nums text-sm font-semibold text-[#141414]">
-                                {formatMoney(item.unitPriceUsd * item.quantity, currency)}
+                                {formatMoney(item.unitPriceUsd * item.quantity, currency, usdToCdfRate)}
                               </p>
                             </div>
                           </div>
@@ -309,7 +316,7 @@ export function CartDrawer({
                                   {suggestion.name}
                                 </p>
                                 <p className="font-mono tabular-nums text-xs text-zinc-600">
-                                  {formatMoney(suggestion.priceUsd, currency)}
+                                  {formatMoney(suggestion.priceUsd, currency, usdToCdfRate)}
                                 </p>
                               </div>
                             </div>
@@ -379,14 +386,14 @@ export function CartDrawer({
                   <div className="flex items-center justify-between text-zinc-600">
                     <span>Sous-total</span>
                     <span className="font-mono tabular-nums font-medium text-[#141414]">
-                      {formatMoney(subtotalUsd, currency)}
+                      {formatMoney(subtotalUsd, currency, usdToCdfRate)}
                     </span>
                   </div>
                   {discountUsd > 0 && (
                     <div className="flex items-center justify-between text-emerald-700">
                       <span>Réduction ({promoCode})</span>
                       <span className="font-mono tabular-nums font-semibold">
-                        -{formatMoney(discountUsd, currency)}
+                        -{formatMoney(discountUsd, currency, usdToCdfRate)}
                       </span>
                     </div>
                   )}
@@ -395,13 +402,15 @@ export function CartDrawer({
                       {deliveryMode === 'pickup' ? 'Retrait au comptoir' : 'Frais de livraison'}
                     </span>
                     <span className="font-mono tabular-nums font-medium text-[#141414]">
-                      {deliveryFeeUsd === 0 ? 'Gratuit' : formatMoney(deliveryFeeUsd, currency)}
+                      {deliveryFeeUsd === 0
+                        ? 'Gratuit'
+                        : formatMoney(deliveryFeeUsd, currency, usdToCdfRate)}
                     </span>
                   </div>
                   <div className="pt-2 border-t border-zinc-100 flex items-center justify-between text-base font-bold text-[#141414]">
                     <span>Total TTC</span>
                     <span className="font-mono tabular-nums">
-                      {formatMoney(totalUsd, currency)}
+                      {formatMoney(totalUsd, currency, usdToCdfRate)}
                     </span>
                   </div>
                 </div>
@@ -415,7 +424,9 @@ export function CartDrawer({
                     <span>Passer au paiement</span>
                     <ArrowRight className="w-4 h-4" strokeWidth={2} />
                   </span>
-                  <span className="font-mono tabular-nums">{formatMoney(totalUsd, currency)}</span>
+                  <span className="font-mono tabular-nums">
+                    {formatMoney(totalUsd, currency, usdToCdfRate)}
+                  </span>
                 </button>
               </div>
             )}

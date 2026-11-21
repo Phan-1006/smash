@@ -12,6 +12,8 @@ interface OrdersPanelProps {
   user: User | null;
   profile: UserProfileDoc | null;
   orders: OrderDoc[];
+  defaultCity?: string;
+  contactPhonePlaceholder?: string;
   onClose: () => void;
   onOpenAdmin: () => void;
   onSignInGoogle: () => Promise<string | null>;
@@ -38,6 +40,8 @@ export function OrdersPanel({
   user,
   profile,
   orders,
+  defaultCity = 'Kinshasa, Gombe',
+  contactPhonePlaceholder = '+243 81 000 0000',
   onClose,
   onOpenAdmin,
   onSignInGoogle,
@@ -45,7 +49,7 @@ export function OrdersPanel({
 }: OrdersPanelProps) {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Kinshasa');
+  const [city, setCity] = useState(defaultCity);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [checkingRef, setCheckingRef] = useState<string | null>(null);
@@ -56,9 +60,11 @@ export function OrdersPanel({
     if (profile) {
       setPhone(profile.phone || '');
       setAddress(profile.defaultAddress || '');
-      setCity(profile.defaultCity || 'Kinshasa');
+      setCity(profile.defaultCity || defaultCity);
+    } else {
+      setCity(defaultCity);
     }
-  }, [profile]);
+  }, [profile, defaultCity]);
 
   if (!open) return null;
 
@@ -234,7 +240,7 @@ export function OrdersPanel({
                       <input
                         type="tel"
                         maxLength={30}
-                        placeholder="Téléphone (+243...)"
+                        placeholder={`Téléphone (${contactPhonePlaceholder})`}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="w-full min-h-[44px] px-3.5 py-2.5 text-base sm:text-sm border border-zinc-200 rounded-lg focus:border-[#141414] focus:outline-none font-mono"

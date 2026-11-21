@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Utensils } from 'lucide-react';
 
 interface FoodImageProps {
@@ -9,6 +9,10 @@ interface FoodImageProps {
 
 export function FoodImage({ src, alt, className = '' }: FoodImageProps) {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
 
   if (failed) {
     return (

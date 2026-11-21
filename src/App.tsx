@@ -14,16 +14,17 @@ import { BurgerStorySection } from './components/BurgerStorySection';
 import { CartDrawer } from './components/CartDrawer';
 import { CatalogCtaSection } from './components/CatalogCtaSection';
 import { CheckoutModal } from './components/CheckoutModal';
-import { CraftSection } from './components/CraftSection';
+import { CrispyAndDrinksSection } from './components/CrispyAndDrinksSection';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
 import { HeroSection } from './components/HeroSection';
 import { MenuSection } from './components/MenuSection';
 import { Navbar } from './components/Navbar';
 import { OrdersPanel } from './components/OrdersPanel';
+import { PizzaExperienceSection } from './components/PizzaExperienceSection';
 import { ProductModal } from './components/ProductModal';
-import { ShowcaseSection } from './components/ShowcaseSection';
 import { MENU_ITEMS, MenuCategory, MenuItem } from './data/menu';
+import { DEFAULT_SITE_SETTINGS } from './data/siteSettings';
 import { auth, googleProvider, testFirestoreConnection } from './firebase';
 import {
   clearUserCart,
@@ -32,6 +33,7 @@ import {
   sanitizeId,
   subscribeAllOrdersForAdmin,
   subscribeProducts,
+  subscribeSiteSettings,
   subscribeUserCart,
   subscribeUserOrders,
   subscribeUserProfile,
@@ -45,6 +47,7 @@ import {
   isAdminUser,
   OrderDoc,
   ProductDoc,
+  SiteSettingsDoc,
   UserProfileDoc,
 } from './types/ecommerce';
 
@@ -67,6 +70,8 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
 
   const [cloudProducts, setCloudProducts] = useState<ProductDoc[]>([]);
+  const [siteSettings, setSiteSettings] =
+    useState<Omit<SiteSettingsDoc, 'updatedAt'>>(DEFAULT_SITE_SETTINGS);
   const [profile, setProfile] = useState<UserProfileDoc | null>(null);
   const [cloudCart, setCloudCart] = useState<CartItemDoc[]>([]);
   const [guestCart, setGuestCart] = useState<CartItemDoc[]>(() => loadGuestCart());
@@ -96,6 +101,7 @@ export default function App() {
   useEffect(() => {
     testFirestoreConnection();
     const unsubProducts = subscribeProducts(setCloudProducts);
+    const unsubSiteSettings = subscribeSiteSettings(setSiteSettings);
     getRedirectResult(auth).catch((err) => {
       const code =
         typeof err === 'object' && err !== null && 'code' in err
@@ -110,8 +116,19 @@ export default function App() {
         console.error('Google redirect error:', code, err);
       }
     });
-    return () => unsubProducts();
+    return () => {
+      unsubProducts();
+      unsubSiteSettings();
+    };
   }, [showToast]);
+
+  useEffect(() => {
+    if (siteSettings.brandName) {
+      document.title = `${siteSettings.brandName} — Burgers, Pizzas & Poulet Croustillant`;
+    }
+  }, [siteSettings.brandName]);
+
+  const effectiveCurrency: CurrencyCode = siteSettings.enableCdfCurrency ? currency : 'USD';
 
   // Use Firestore catalog when seeded, fallback to default MENU_ITEMS
   const activeMenu: MenuItem[] = useMemo(() => {
@@ -413,6 +430,7 @@ export default function App() {
           <Navbar
             user={user}
             cartCount={cartCount}
+            brandName={siteSettings.brandName}
             onOpenCart={() => setCartOpen(true)}
             onOpenOrders={() => setOrdersOpen(true)}
             onOpenAdmin={() => setAdminOpen(true)}
@@ -421,42 +439,68 @@ export default function App() {
           />
 
           <main className="flex-1">
+            {/* SECTION 01 — EDITORIAL LIGHT HERO + 2.5D DEPTH */}
             <HeroSection
               signatureItem={signatureBurger}
-              currency={currency}
+              currency={effectiveCurrency}
+              siteSettings={siteSettings}
               onSelectProduct={setSelectedProduct}
             />
+            {/* SECTION 02 — EXPLODED 7-LAYER BURGER EXPERIENCE */}
             <BurgerStorySection
               signatureItem={signatureBurger}
-              currency={currency}
+              currency={effectiveCurrency}
+              brandName={siteSettings.brandName}
+              usdToCdfRate={siteSettings.usdToCdfRate}
               onSelectProduct={setSelectedProduct}
             />
-            <ShowcaseSection
+            {/* SECTION 03 — STONE-BAKED PIZZA EXPERIENCE */}
+            <PizzaExperienceSection
               items={activeMenu}
-              currency={currency}
+              currency={effectiveCurrency}
+              pizzaShowcaseImage={siteSettings.pizzaShowcaseImage}
+              usdToCdfRate={siteSettings.usdToCdfRate}
               onSelectProduct={setSelectedProduct}
               onExploreCategory={handleExploreCategory}
             />
-            <CraftSection />
-            <CatalogCtaSection onExploreCategory={handleExploreCategory} />
+            {/* SECTION 04 — CRISPY CHICKEN, FRIES & MILKSHAKE EXPERIENCE */}
+            <CrispyAndDrinksSection
+              items={activeMenu}
+              currency={effectiveCurrency}
+              crispyShowcaseImage={siteSettings.crispyShowcaseImage}
+              friesShowcaseImage={siteSettings.friesShowcaseImage}
+              drinksShowcaseImage={siteSettings.drinksShowcaseImage}
+              usdToCdfRate={siteSettings.usdToCdfRate}
+              onSelectProduct={setSelectedProduct}
+              onExploreCategory={handleExploreCategory}
+            />
+            {/* SECTION 05 — FULL E-COMMERCE CATALOG */}
             <MenuSection
               items={activeMenu}
-              currency={currency}
+              currency={effectiveCurrency}
+              enableCdfCurrency={siteSettings.enableCdfCurrency}
+              usdToCdfRate={siteSettings.usdToCdfRate}
               activeCategory={menuCategory}
               onChangeCategory={setMenuCategory}
               onChangeCurrency={setCurrency}
               onSelectProduct={setSelectedProduct}
               onQuickAdd={handleQuickAdd}
             />
+            {/* SECTION 06 — FINAL BRAND CTA */}
+            <CatalogCtaSection
+              siteSettings={siteSettings}
+              onExploreCategory={handleExploreCategory}
+            />
           </main>
 
-          <Footer />
+          <Footer siteSettings={siteSettings} />
 
           {/* Product Customizer Modal */}
           <ProductModal
             key={selectedProduct?.id || 'closed'}
             item={selectedProduct}
-            currency={currency}
+            currency={effectiveCurrency}
+            usdToCdfRate={siteSettings.usdToCdfRate}
             onClose={() => setSelectedProduct(null)}
             onAddToCart={(payload) => void handleAddToCart(payload)}
           />
@@ -466,9 +510,10 @@ export default function App() {
             open={cartOpen}
             items={activeCart}
             catalog={activeMenu}
-            currency={currency}
+            currency={effectiveCurrency}
             deliveryMode={deliveryMode}
             promoCode={promoCode}
+            siteSettings={siteSettings}
             onApplyPromoCode={setPromoCode}
             onChangeDeliveryMode={setDeliveryMode}
             onClose={() => setCartOpen(false)}
@@ -487,9 +532,10 @@ export default function App() {
             user={user}
             profile={profile}
             items={activeCart}
-            currency={currency}
+            currency={effectiveCurrency}
             deliveryMode={deliveryMode}
             promoCode={promoCode}
+            siteSettings={siteSettings}
             onChangeCurrency={setCurrency}
             onSignInGoogle={handleSignInGoogle}
             onClearCart={handleClearCart}
@@ -503,6 +549,8 @@ export default function App() {
             user={user}
             profile={profile}
             orders={orders}
+            defaultCity={siteSettings.storeCity}
+            contactPhonePlaceholder={siteSettings.contactPhone}
             onClose={() => setOrdersOpen(false)}
             onOpenAdmin={() => setAdminOpen(true)}
             onSignInGoogle={handleSignInGoogle}
@@ -517,6 +565,7 @@ export default function App() {
               orders={adminOrders}
               products={activeMenu}
               hasCloudProducts={cloudProducts.length > 0}
+              siteSettings={siteSettings}
               onClose={() => setAdminOpen(false)}
             />
           )}

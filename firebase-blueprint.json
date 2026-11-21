@@ -324,6 +324,129 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global storefront customization, brand identity, store address, editorial hero copy, section posters, and delivery/currency settings managed exclusively by the verified admin.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["main"]
+        },
+        "brandName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "storeCity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "storeAddress": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "openingHours": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "contactPhone": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "contactEmail": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "heroKicker": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "heroTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "heroSubtitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 320
+        },
+        "heroMainImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "heroMacroImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "pizzaShowcaseImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "crispyShowcaseImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "friesShowcaseImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "drinksShowcaseImage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "deliveryFeeUsd": {
+          "type": "number"
+        },
+        "freeDeliveryThresholdUsd": {
+          "type": "number"
+        },
+        "usdToCdfRate": {
+          "type": "number"
+        },
+        "enableCdfCurrency": {
+          "type": "boolean"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "brandName",
+        "storeCity",
+        "storeAddress",
+        "openingHours",
+        "contactPhone",
+        "contactEmail",
+        "heroKicker",
+        "heroTitle",
+        "heroSubtitle",
+        "heroMainImage",
+        "heroMacroImage",
+        "pizzaShowcaseImage",
+        "crispyShowcaseImage",
+        "friesShowcaseImage",
+        "drinksShowcaseImage",
+        "deliveryFeeUsd",
+        "freeDeliveryThresholdUsd",
+        "usdToCdfRate",
+        "enableCdfCurrency",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -350,6 +473,13 @@
         "$ref": "#/entities/Order"
       },
       "description": "Customer orders readable and manageable by the owning customer and verified admin."
+    },
+    "/site_settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/SiteSettings"
+      },
+      "description": "Publicly readable storefront configuration document ('main') editable exclusively by the verified admin."
     }
   }
 }
+

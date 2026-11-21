@@ -102,6 +102,21 @@
   will-change: transform;
 }
 
+@keyframes msFloatSlow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+.ms-float-slow {
+  animation: msFloatSlow 5.6s ease-in-out infinite;
+  will-change: transform;
+}
+
 /* Smooth entrance classes */
 .ms-fade-rise {
   animation: msFadeRise 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -281,6 +296,48 @@
   );
 }
 
+@keyframes msMarqueeScroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes msScrollLine {
+  0% {
+    transform: translate3d(0, -100%, 0);
+    opacity: 0;
+  }
+  35% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 120%, 0);
+    opacity: 0;
+  }
+}
+
+.ms-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: msMarqueeScroll 34s linear infinite;
+  will-change: transform;
+}
+
+.ms-marquee-wrapper:hover .ms-marquee-track {
+  animation-play-state: paused;
+}
+
+.ms-scroll-line {
+  animation: msScrollLine 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  will-change: transform, opacity;
+}
+
 /* Native CSS Scroll-Driven Animations where supported */
 @supports (animation-timeline: view()) {
   .ms-scroll-reveal {
@@ -309,9 +366,12 @@
   }
 
   .ms-hero-ken-burns,
+  .ms-float-slow,
   .ms-fade-rise,
   .ms-pop-in,
   .ms-progress-shimmer::after,
+  .ms-marquee-track,
+  .ms-scroll-line,
   .ms-scroll-reveal,
   .ms-scroll-curtain {
     animation: none !important;

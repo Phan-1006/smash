@@ -7,6 +7,7 @@ import { isAdminUser } from '../types/ecommerce';
 interface NavbarProps {
   user: User | null;
   cartCount: number;
+  brandName?: string;
   onOpenCart: () => void;
   onOpenOrders: () => void;
   onOpenAdmin: () => void;
@@ -17,6 +18,7 @@ interface NavbarProps {
 export function Navbar({
   user,
   cartCount,
+  brandName = 'MAISON SMASH',
   onOpenCart,
   onOpenOrders,
   onOpenAdmin,
@@ -40,16 +42,16 @@ export function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-zinc-200">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 text-[#141414]">
       <div className="max-w-7xl xl:max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between gap-4 md:gap-8">
-        {/* Zone 1: Single-element wordmark + mobile menu button */}
+        {/* Zone 1: Single-element wordmark + mobile menu trigger */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-            className="md:hidden inline-flex items-center justify-center w-11 h-11 -ml-2 text-[#141414] hover:bg-[#F5F5F7] rounded-lg transition-colors cursor-pointer"
+            className="md:hidden inline-flex items-center justify-center w-11 h-11 -ml-2 rounded-lg text-[#141414] hover:bg-[#F5F5F7] transition-colors cursor-pointer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -57,11 +59,11 @@ export function Navbar({
             href="#top"
             className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-[#141414] whitespace-nowrap shrink-0"
           >
-            MAISON SMASH
+            {brandName}
           </a>
         </div>
 
-        {/* Zone 2: Clean single-line navigation links (tablet/desktop) */}
+        {/* Zone 2: Concise single-line navigation links */}
         <nav
           aria-label="Navigation principale"
           className="hidden md:flex items-center gap-5 lg:gap-7 text-sm font-medium text-zinc-600"
@@ -73,10 +75,16 @@ export function Navbar({
             L’Atelier
           </a>
           <a
-            href="#specialites"
+            href="#pizzas"
             className="hidden lg:inline-block ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
           >
-            Spécialités
+            Pizzas
+          </a>
+          <a
+            href="#crispy-drinks"
+            className="hidden xl:inline-block ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0"
+          >
+            Poulet &amp; Shakes
           </a>
           <a
             href="#menu"
@@ -103,7 +111,7 @@ export function Navbar({
             <button
               type="button"
               onClick={onOpenOrders}
-              className="ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0 truncate max-w-[150px] cursor-pointer"
+              className="ms-link-underline hover:text-[#141414] transition-colors whitespace-nowrap shrink-0 truncate max-w-[140px] cursor-pointer"
             >
               {firstName}
             </button>
@@ -119,13 +127,13 @@ export function Navbar({
           )}
         </nav>
 
-        {/* Zone 3: Primary action */}
+        {/* Zone 3: Single primary action */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <motion.button
             type="button"
             onClick={onOpenCart}
             whileTap={{ scale: 0.96 }}
-            className="ms-btn-glint inline-flex items-center gap-2 px-3.5 sm:px-4 min-h-[42px] bg-[#D92323] text-white text-sm font-semibold rounded-lg hover:bg-[#B81C1C] transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D92323]"
+            className="ms-btn-glint inline-flex items-center gap-2 px-3.5 sm:px-4 min-h-[44px] bg-[#D92323] text-white text-sm font-semibold rounded-lg hover:bg-[#B81C1C] transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D92323]"
           >
             <ShoppingBag className="w-4 h-4" strokeWidth={2} />
             <span>Panier</span>
@@ -151,7 +159,7 @@ export function Navbar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="md:hidden border-t border-zinc-200 bg-white px-4 py-3 space-y-1 shadow-lg max-h-[calc(100svh-4rem)] overflow-y-auto"
+            className="md:hidden border-t border-zinc-200 bg-white text-[#141414] px-4 py-3 space-y-1 shadow-lg max-h-[calc(100svh-4rem)] overflow-y-auto"
           >
             <a
               href="#burger-story"
@@ -161,25 +169,25 @@ export function Navbar({
               L’Atelier Burger
             </a>
             <a
-              href="#specialites"
+              href="#pizzas"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
             >
-              Spécialités
+              Pizzas sur Pierre
+            </a>
+            <a
+              href="#crispy-drinks"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
+            >
+              Poulet Crispy &amp; Milkshakes
             </a>
             <a
               href="#menu"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
             >
-              La Carte
-            </a>
-            <a
-              href="#savoir-faire"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center min-h-[44px] px-3 rounded-lg text-sm font-semibold text-[#141414] hover:bg-[#F5F5F7] transition-colors"
-            >
-              Savoir-Faire
+              La Carte Complète
             </a>
             <button
               type="button"

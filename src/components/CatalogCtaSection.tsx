@@ -1,28 +1,35 @@
-import { ArrowDown, Flame } from 'lucide-react';
+import { ArrowDown, ArrowUp, Flame } from 'lucide-react';
 import { motion } from 'motion/react';
 import { MenuCategory } from '../data/menu';
+import { DEFAULT_SITE_SETTINGS } from '../data/siteSettings';
+import type { SiteSettingsDoc } from '../types/ecommerce';
 import { MagneticButton } from './MagneticButton';
 
 interface CatalogCtaSectionProps {
+  siteSettings?: Omit<SiteSettingsDoc, 'updatedAt'>;
   onExploreCategory: (category: MenuCategory) => void;
 }
 
 const QUICK_FILTERS: { id: MenuCategory; label: string }[] = [
   { id: 'burgers', label: 'Smash Burgers' },
-  { id: 'pizzas', label: 'Pizzas sur pierre' },
+  { id: 'pizzas', label: 'Pizzas Artisanales' },
   { id: 'chicken', label: 'Poulet Croustillant' },
-  { id: 'sides', label: 'Frites & Shakes' },
+  { id: 'sides', label: 'Frites & Sides' },
+  { id: 'drinks', label: 'Boissons & Shakes' },
 ];
 
-export function CatalogCtaSection({ onExploreCategory }: CatalogCtaSectionProps) {
+export function CatalogCtaSection({
+  siteSettings = DEFAULT_SITE_SETTINGS,
+  onExploreCategory,
+}: CatalogCtaSectionProps) {
   return (
-    <section className="relative bg-[#141414] text-white py-11 sm:py-20 overflow-hidden">
+    <section className="relative bg-[#141414] text-white py-14 sm:py-20 lg:py-24 overflow-hidden border-t border-zinc-800/80">
       {/* Subtle warm radial ember ambient light */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-60"
+        className="absolute inset-0 pointer-events-none opacity-65"
         style={{
           background:
-            'radial-gradient(ellipse 70% 80% at 50% 100%, rgba(217, 35, 35, 0.22), transparent 72%)',
+            'radial-gradient(ellipse 70% 80% at 50% 100%, rgba(217, 35, 35, 0.24), transparent 72%)',
         }}
         aria-hidden="true"
       />
@@ -34,33 +41,44 @@ export function CatalogCtaSection({ onExploreCategory }: CatalogCtaSectionProps)
           viewport={{ once: true, amount: 0.3 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         >
-          <p className="inline-flex items-center gap-2 text-[11px] sm:text-xs font-medium uppercase tracking-widest text-zinc-400 mb-2.5 sm:mb-3">
+          <p className="inline-flex items-center gap-2 text-[11px] sm:text-xs font-medium uppercase tracking-[0.22em] text-[#F59E0B] mb-3">
             <Flame className="w-3.5 h-3.5 text-[#D92323]" strokeWidth={2} />
-            <span>Cuisine ouverte · Préparation minute</span>
+            <span>
+              {siteSettings.storeCity} · {siteSettings.openingHours}
+            </span>
           </p>
 
           <h2
             className="font-display text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white mb-3 sm:mb-4"
             style={{ textWrap: 'balance' }}
           >
-            Composez votre commande maintenant.
+            Prêt pour votre prochain smash ?
           </h2>
 
-          <p className="text-sm sm:text-base text-zinc-300 leading-relaxed max-w-2xl mx-auto mb-6 sm:mb-8">
-            Retrouvez l’ensemble de notre carte ci-dessous, choisissez vos suppléments, passez en
-            menu et réglez en quelques secondes par Mobile Money ou carte bancaire.
+          <p className="text-sm sm:text-base text-zinc-300 leading-relaxed max-w-2xl mx-auto mb-7 sm:mb-9">
+            Commandez à emporter ou en livraison express à {siteSettings.storeCity}. Paiement
+            sécurisé en {siteSettings.enableCdfCurrency ? 'USD ou Francs Congolais' : 'USD'} par
+            Mobile Money et cartes Visa / Mastercard.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3 sm:gap-4 mb-7 sm:mb-9">
             <MagneticButton
               href="#menu"
               wrapperClassName="w-full sm:w-auto inline-flex"
               onClick={() => onExploreCategory('all')}
               className="ms-btn-glint w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 sm:py-4 min-h-[48px] bg-[#D92323] text-white text-sm font-semibold rounded-lg hover:bg-[#B81C1C] transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-lg shadow-[#D92323]/25"
             >
-              <span>Découvrir toute la carte</span>
-              <ArrowDown className="w-4 h-4" strokeWidth={2} />
+              <span>Commander sur la carte</span>
+              <ArrowUp className="w-4 h-4" strokeWidth={2} />
             </MagneticButton>
+
+            <a
+              href="#burger-story"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 sm:py-4 min-h-[48px] border border-zinc-700 text-zinc-200 text-sm font-semibold rounded-lg hover:bg-zinc-900 hover:border-zinc-500 hover:text-white transition-colors whitespace-nowrap shrink-0"
+            >
+              <span>Revoir l’atelier burger</span>
+              <ArrowDown className="w-4 h-4 rotate-180" strokeWidth={2} />
+            </a>
           </div>
 
           {/* Clean unboxed category shortcut links */}

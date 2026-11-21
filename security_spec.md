@@ -19,5 +19,5 @@
 10. **Terminal State Resurrection**: Updating an order whose `orderStatus == 'CANCELLED'` back to `'PREPARING'` -> `PERMISSION_DENIED`.
 11. **Value Poisoning on Update**: Updating `paymentStatus` to `12345` (number) or invalid string `'HACKED'` -> `PERMISSION_DENIED` (`isValidOrder` runs on update).
 12. **Unbounded Array / Denial-of-Wallet**: Submitting `itemsSummary` with 100 entries or a 10KB string -> `PERMISSION_DENIED`.
-13. **Non-Admin SiteSettings Tampering**: Authenticated customer attempting to write `/site_settings/main` or inject oversized image base64 (>240 chars) -> `PERMISSION_DENIED`.
+13. **Non-Admin SiteSettings Tampering**: Authenticated customer attempting to write `/site_settings/main`, inject unsafe schemes (`javascript:` / `data:`), or inject oversized image strings (>1000 chars) -> `PERMISSION_DENIED`.
 

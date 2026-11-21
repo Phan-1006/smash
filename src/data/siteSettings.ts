@@ -1,4 +1,5 @@
 import type { SiteSettingsDoc } from '../types/ecommerce';
+import { sanitizeImageUrl } from '../utils/imageUpload';
 
 export const DEFAULT_SITE_SETTINGS: Omit<SiteSettingsDoc, 'updatedAt'> = {
   id: 'main',
@@ -49,12 +50,12 @@ export function normalizeSiteSettings(raw: Partial<SiteSettingsDoc> | null | und
     heroKicker: cleanBoundedString(src.heroKicker, DEFAULT_SITE_SETTINGS.heroKicker, 1, 100),
     heroTitle: cleanBoundedString(src.heroTitle, DEFAULT_SITE_SETTINGS.heroTitle, 1, 140),
     heroSubtitle: cleanBoundedString(src.heroSubtitle, DEFAULT_SITE_SETTINGS.heroSubtitle, 1, 320),
-    heroMainImage: cleanBoundedString(src.heroMainImage, DEFAULT_SITE_SETTINGS.heroMainImage, 1, 240),
-    heroMacroImage: cleanBoundedString(src.heroMacroImage, DEFAULT_SITE_SETTINGS.heroMacroImage, 1, 240),
-    pizzaShowcaseImage: cleanBoundedString(src.pizzaShowcaseImage, DEFAULT_SITE_SETTINGS.pizzaShowcaseImage, 1, 240),
-    crispyShowcaseImage: cleanBoundedString(src.crispyShowcaseImage, DEFAULT_SITE_SETTINGS.crispyShowcaseImage, 1, 240),
-    friesShowcaseImage: cleanBoundedString(src.friesShowcaseImage, DEFAULT_SITE_SETTINGS.friesShowcaseImage, 1, 240),
-    drinksShowcaseImage: cleanBoundedString(src.drinksShowcaseImage, DEFAULT_SITE_SETTINGS.drinksShowcaseImage, 1, 240),
+    heroMainImage: sanitizeImageUrl(src.heroMainImage, DEFAULT_SITE_SETTINGS.heroMainImage),
+    heroMacroImage: sanitizeImageUrl(src.heroMacroImage, DEFAULT_SITE_SETTINGS.heroMacroImage),
+    pizzaShowcaseImage: sanitizeImageUrl(src.pizzaShowcaseImage, DEFAULT_SITE_SETTINGS.pizzaShowcaseImage),
+    crispyShowcaseImage: sanitizeImageUrl(src.crispyShowcaseImage, DEFAULT_SITE_SETTINGS.crispyShowcaseImage),
+    friesShowcaseImage: sanitizeImageUrl(src.friesShowcaseImage, DEFAULT_SITE_SETTINGS.friesShowcaseImage),
+    drinksShowcaseImage: sanitizeImageUrl(src.drinksShowcaseImage, DEFAULT_SITE_SETTINGS.drinksShowcaseImage),
     deliveryFeeUsd: Number(cleanBoundedNumber(src.deliveryFeeUsd, DEFAULT_SITE_SETTINGS.deliveryFeeUsd, 0, 500).toFixed(2)),
     freeDeliveryThresholdUsd: Number(cleanBoundedNumber(src.freeDeliveryThresholdUsd, DEFAULT_SITE_SETTINGS.freeDeliveryThresholdUsd, 0, 5000).toFixed(2)),
     usdToCdfRate: Math.round(cleanBoundedNumber(src.usdToCdfRate, DEFAULT_SITE_SETTINGS.usdToCdfRate, 100, 100000)),

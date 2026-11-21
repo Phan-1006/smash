@@ -41,7 +41,8 @@
         "image": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "tag": {
           "type": "string",
@@ -178,7 +179,8 @@
         "image": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "updatedAt": {
           "type": "string",
@@ -380,32 +382,38 @@
         "heroMainImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "heroMacroImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "pizzaShowcaseImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "crispyShowcaseImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "friesShowcaseImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "drinksShowcaseImage": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 240
+          "maxLength": 1000,
+          "pattern": "^(https?://|/).*$"
         },
         "deliveryFeeUsd": {
           "type": "number"

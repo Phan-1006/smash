@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import express, { type Request, type Response } from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +12,7 @@ import {
   processMobileMoneyPayment,
   processWebhookCallback,
   resolveCallbackUrlFromHeaders,
-} from './lib/maishapay';
+} from './lib/maishapay.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

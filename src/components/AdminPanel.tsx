@@ -8,7 +8,6 @@ import {
   Download,
   Edit3,
   ExternalLink,
-  ImagePlus,
   Loader2,
   MapPin,
   PackagePlus,
@@ -17,7 +16,6 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
-  Upload,
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -45,9 +43,11 @@ import type {
 } from '../types/ecommerce';
 import {
   fetchAdminUploadedImages,
+  isValidImageLink,
   uploadAdminImageFile,
   type UploadedImageItem,
 } from '../utils/imageUpload';
+import { AdminImageField } from './AdminImageField';
 import { FoodImage } from './FoodImage';
 
 interface AdminPanelProps {
@@ -420,6 +420,10 @@ export function AdminPanel({
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidImageLink(formImage)) {
+      setAdminError('Veuillez saisir un lien d’image valide (commençant par https://, http:// ou /) ou importer une photo.');
+      return;
+    }
     setSavingProduct(true);
     setAdminError(null);
     try {
@@ -599,6 +603,14 @@ export function AdminPanel({
 
   const handleSaveSiteSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    for (const slot of SITE_POSTER_SLOTS) {
+      if (!isValidImageLink(siteForm[slot.key])) {
+        setAdminError(
+          `Lien invalide pour « ${slot.title} ». Utilisez une adresse commençant par https://, http:// ou / (max 1000 caractères).`
+        );
+        return;
+      }
+    }
     setSavingSite(true);
     setSiteSavedNotice(false);
     setAdminError(null);
@@ -1113,83 +1125,28 @@ export function AdminPanel({
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
-                      <div className="lg:col-span-2 flex items-start gap-3">
-                        <div className="w-24 h-20 rounded-lg overflow-hidden bg-white border border-zinc-200 shrink-0 mt-5">
+                      <div className="lg:col-span-2 flex flex-col sm:flex-row items-start gap-3">
+                        <div className="w-28 h-24 rounded-xl overflow-hidden bg-white border border-zinc-200 shrink-0 sm:mt-5">
                           <FoodImage
                             src={formImage}
                             alt="Aperçu"
                             className="w-full h-full object-cover"
                           />
                         </div>
-                        <div className="flex-1 space-y-2 min-w-0">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <label className="block text-xs font-semibold text-zinc-600">
-                              Photo du produit
-                            </label>
-                            <label className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#141414] text-white text-[11px] font-semibold rounded-md hover:bg-[#D92323] transition-colors cursor-pointer">
-                              {uploadingTarget === 'product' ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Upload className="w-3.5 h-3.5" />
-                              )}
-                              <span>
-                                {uploadingTarget === 'product'
-                                  ? 'Téléversement...'
-                                  : 'Importer une photo'}
-                              </span>
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                disabled={uploadingTarget === 'product'}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = '';
-                                  void handleImageFileUpload(f, 'product', (url) =>
-                                    setFormImage(url)
-                                  );
-                                }}
-                                className="sr-only"
-                              />
-                            </label>
-                          </div>
-                          <select
-                            value={
-                              IMAGE_PRESETS.some((p) => p.url === formImage) ||
-                              uploadedImages.some((u) => u.url === formImage)
-                                ? formImage
-                                : ''
-                            }
-                            onChange={(e) => {
-                              if (e.target.value) setFormImage(e.target.value);
-                            }}
-                            className="w-full px-3 py-2 min-h-[40px] text-sm bg-white border border-zinc-300 rounded-lg"
-                          >
-                            <option value="">— URL personnalisée —</option>
-                            {uploadedImages.length > 0 && (
-                              <optgroup label="Mes photos importées">
-                                {uploadedImages.map((u) => (
-                                  <option key={u.url} value={u.url}>
-                                    Importée : {u.name}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            )}
-                            <optgroup label="Galerie studio">
-                              {IMAGE_PRESETS.map((preset) => (
-                                <option key={preset.url} value={preset.url}>
-                                  {preset.label}
-                                </option>
-                              ))}
-                            </optgroup>
-                          </select>
-                          <input
-                            type="text"
-                            required
-                            maxLength={240}
+                        <div className="flex-1 w-full space-y-1.5 min-w-0">
+                          <label className="block text-xs font-semibold text-zinc-600">
+                            Photo du produit (fichier, lien URL ou galerie)
+                          </label>
+                          <AdminImageField
                             value={formImage}
-                            onChange={(e) => setFormImage(e.target.value)}
-                            placeholder="/uploads/... ou https://..."
-                            className="w-full px-3 py-1.5 text-xs bg-white border border-zinc-300 rounded-lg font-mono"
+                            onChange={setFormImage}
+                            onUploadFile={(f) =>
+                              void handleImageFileUpload(f, 'product', (url) => setFormImage(url))
+                            }
+                            isUploading={uploadingTarget === 'product'}
+                            uploadedImages={uploadedImages}
+                            presets={IMAGE_PRESETS}
+                            selectAriaLabel="Choisir une photo pour le produit"
                           />
                         </div>
                       </div>
@@ -1639,80 +1596,22 @@ export function AdminPanel({
                             />
                           </div>
 
-                          <div className="space-y-2 mt-auto">
-                            <label className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 min-h-[38px] bg-[#141414] text-white text-xs font-semibold rounded-lg hover:bg-[#D92323] transition-colors cursor-pointer">
-                              {isUploading ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <ImagePlus className="w-3.5 h-3.5" />
-                              )}
-                              <span>
-                                {isUploading
-                                  ? 'Envoi en cours...'
-                                  : 'Téléverser une photo depuis cet appareil'}
-                              </span>
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp"
-                                disabled={isUploading}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  e.target.value = '';
-                                  void handleImageFileUpload(f, slot.key, (url) =>
-                                    setSiteForm((prev) => ({ ...prev, [slot.key]: url }))
-                                  );
-                                }}
-                                className="sr-only"
-                              />
-                            </label>
-
-                            <select
-                              aria-label={`Choisir une photo pour ${slot.title}`}
-                              value={
-                                IMAGE_PRESETS.some((p) => p.url === currentUrl) ||
-                                uploadedImages.some((u) => u.url === currentUrl)
-                                  ? currentUrl
-                                  : ''
-                              }
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  setSiteForm((prev) => ({
-                                    ...prev,
-                                    [slot.key]: e.target.value,
-                                  }));
-                                }
-                              }}
-                              className="w-full px-2.5 py-2 min-h-[36px] text-xs bg-white border border-zinc-300 rounded-lg"
-                            >
-                              <option value="">— URL personnalisée ou galerie —</option>
-                              {uploadedImages.length > 0 && (
-                                <optgroup label="Mes photos importées">
-                                  {uploadedImages.map((u) => (
-                                    <option key={u.url} value={u.url}>
-                                      Importée : {u.name}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                              <optgroup label="Galerie studio">
-                                {IMAGE_PRESETS.map((preset) => (
-                                  <option key={preset.url} value={preset.url}>
-                                    {preset.label}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            </select>
-
-                            <input
-                              type="text"
-                              required
-                              maxLength={240}
+                          <div className="mt-auto">
+                            <AdminImageField
+                              compact
                               value={currentUrl}
-                              onChange={(e) =>
-                                setSiteForm((prev) => ({ ...prev, [slot.key]: e.target.value }))
+                              onChange={(nextUrl) =>
+                                setSiteForm((prev) => ({ ...prev, [slot.key]: nextUrl }))
                               }
-                              placeholder="/uploads/... ou https://..."
-                              className="w-full px-2.5 py-1.5 text-[11px] bg-white border border-zinc-300 rounded-lg font-mono"
+                              onUploadFile={(f) =>
+                                void handleImageFileUpload(f, slot.key, (url) =>
+                                  setSiteForm((prev) => ({ ...prev, [slot.key]: url }))
+                                )
+                              }
+                              isUploading={isUploading}
+                              uploadedImages={uploadedImages}
+                              presets={IMAGE_PRESETS}
+                              selectAriaLabel={`Choisir une photo pour ${slot.title}`}
                             />
                           </div>
                         </div>

@@ -8,6 +8,39 @@ export interface UploadedImageItem {
 
 const MAX_CLIENT_DIMENSION = 1600;
 
+export function isValidImageLink(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 1000) return false;
+  return /^(https?:\/\/|\/)/i.test(trimmed);
+}
+
+export function sanitizeImageUrl(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim().slice(0, 1000);
+  return isValidImageLink(trimmed) ? trimmed : fallback;
+}
+
+function getUniqueEndpoints(path: string): { endpoint: string; originBase: string }[] {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  const configured = apiUrl(normalized);
+  const candidates: { endpoint: string; originBase: string }[] = [];
+
+  // Prefer same-origin Express endpoint first so local/AI Studio uploads always hit server.ts
+  candidates.push({ endpoint: normalized, originBase: '' });
+
+  if (configured !== normalized) {
+    let originBase = '';
+    try {
+      originBase = new URL(configured).origin;
+    } catch {
+      originBase = '';
+    }
+    candidates.push({ endpoint: configured, originBase });
+  }
+
+  return candidates;
+}
+
 async function prepareImageForUpload(
   file: File
 ): Promise<{ mimeType: string; dataBase64: string }> {
@@ -53,38 +86,79 @@ async function prepareImageForUpload(
 export async function uploadAdminImageFile(file: File, user: User): Promise<string> {
   const idToken = await user.getIdToken();
   const { mimeType, dataBase64 } = await prepareImageForUpload(file);
+  const candidates = getUniqueEndpoints('/api/admin/upload');
 
-  const res = await fetch(apiUrl('/api/admin/upload'), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({
-      mimeType,
-      dataBase64,
-    }),
-  });
+  let lastStatus = 0;
+  let lastError = '';
 
-  const payload = await parseJsonSafe<{ url?: string; error?: string }>(res);
-  if (!res.ok || !payload?.url) {
-    throw new Error(payload?.error || `Échec du téléversement (HTTP ${res.status}).`);
+  for (const { endpoint, originBase } of candidates) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          mimeType,
+          dataBase64,
+        }),
+      });
+
+      const payload = await parseJsonSafe<{ url?: string; error?: string }>(res);
+      if (res.ok && payload?.url) {
+        if (payload.url.startsWith('/') && originBase) {
+          return `${originBase}${payload.url}`;
+        }
+        return payload.url;
+      }
+
+      lastStatus = res.status;
+      lastError = payload?.error || '';
+
+      // Retry secondary candidate only when endpoint wasn't found/available on primary
+      if (res.status !== 404 && res.status !== 501) {
+        break;
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : '';
+    }
   }
 
-  return payload.url;
+  if (lastStatus === 404 || lastStatus === 501) {
+    throw new Error(
+      lastError ||
+        'Le téléversement de fichier local n’est pas disponible sur cet hébergement. Collez directement un lien d’image (https://...) dans le champ Lien ci-dessous.'
+    );
+  }
+
+  throw new Error(lastError || `Échec du téléversement (HTTP ${lastStatus || 500}).`);
 }
 
 export async function fetchAdminUploadedImages(user: User): Promise<UploadedImageItem[]> {
   try {
     const idToken = await user.getIdToken();
-    const res = await fetch(apiUrl('/api/admin/uploads'), {
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-      },
-    });
-    if (!res.ok) return [];
-    const payload = await parseJsonSafe<{ files?: UploadedImageItem[] }>(res);
-    return Array.isArray(payload?.files) ? payload.files : [];
+    const candidates = getUniqueEndpoints('/api/admin/uploads');
+    for (const { endpoint, originBase } of candidates) {
+      try {
+        const res = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+        if (!res.ok) continue;
+        const payload = await parseJsonSafe<{ files?: UploadedImageItem[] }>(res);
+        if (Array.isArray(payload?.files)) {
+          return payload.files.map((item) => ({
+            name: item.name,
+            url: item.url.startsWith('/') && originBase ? `${originBase}${item.url}` : item.url,
+          }));
+        }
+      } catch {
+        // Try next candidate
+      }
+    }
+    return [];
   } catch {
     return [];
   }

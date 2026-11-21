@@ -38,6 +38,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isValidImageUrl(url) {
+      return url is string
+        && url.size() >= 1
+        && url.size() <= 1000
+        && url.matches('^(https?://|/).*$');
+    }
+
     // Validation Blueprint: Product
     function isValidProduct(data, productId) {
       return data.keys().hasAll([
@@ -70,9 +77,7 @@ service cloud.firestore {
         && data.priceUsd is number
         && data.priceUsd >= 0.5
         && data.priceUsd <= 500
-        && data.image is string
-        && data.image.size() >= 1
-        && data.image.size() <= 240
+        && isValidImageUrl(data.image)
         && (!('tag' in data) || (data.tag is string && data.tag.size() <= 30))
         && data.available is bool
         && data.supportsCombo is bool
@@ -142,9 +147,7 @@ service cloud.firestore {
         && data.addons.size() <= 8
         && (data.addons.size() == 0 || (data.addons[0] is string && data.addons[0].size() <= 80))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 180))
-        && data.image is string
-        && data.image.size() >= 1
-        && data.image.size() <= 240
+        && isValidImageUrl(data.image)
         && data.updatedAt is timestamp;
     }
 
@@ -352,24 +355,12 @@ service cloud.firestore {
         && data.heroSubtitle is string
         && data.heroSubtitle.size() >= 1
         && data.heroSubtitle.size() <= 320
-        && data.heroMainImage is string
-        && data.heroMainImage.size() >= 1
-        && data.heroMainImage.size() <= 240
-        && data.heroMacroImage is string
-        && data.heroMacroImage.size() >= 1
-        && data.heroMacroImage.size() <= 240
-        && data.pizzaShowcaseImage is string
-        && data.pizzaShowcaseImage.size() >= 1
-        && data.pizzaShowcaseImage.size() <= 240
-        && data.crispyShowcaseImage is string
-        && data.crispyShowcaseImage.size() >= 1
-        && data.crispyShowcaseImage.size() <= 240
-        && data.friesShowcaseImage is string
-        && data.friesShowcaseImage.size() >= 1
-        && data.friesShowcaseImage.size() <= 240
-        && data.drinksShowcaseImage is string
-        && data.drinksShowcaseImage.size() >= 1
-        && data.drinksShowcaseImage.size() <= 240
+        && isValidImageUrl(data.heroMainImage)
+        && isValidImageUrl(data.heroMacroImage)
+        && isValidImageUrl(data.pizzaShowcaseImage)
+        && isValidImageUrl(data.crispyShowcaseImage)
+        && isValidImageUrl(data.friesShowcaseImage)
+        && isValidImageUrl(data.drinksShowcaseImage)
         && data.deliveryFeeUsd is number
         && data.deliveryFeeUsd >= 0
         && data.deliveryFeeUsd <= 500

@@ -24,6 +24,7 @@ import type {
   ProductDoc,
   UserProfileDoc,
 } from '../types/ecommerce';
+import { sanitizeImageUrl } from '../utils/imageUpload';
 
 export function sanitizeId(raw: string, maxLen = 64): string {
   const cleaned = raw.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -88,7 +89,10 @@ export async function upsertProduct(
       calories: product.calories.trim().slice(0, 30),
       description: product.description.trim().slice(0, 400),
       priceUsd: Number(Math.max(0.5, Math.min(500, product.priceUsd)).toFixed(2)),
-      image: product.image.trim().slice(0, 240),
+      image: sanitizeImageUrl(
+        product.image,
+        '/src/assets/images/hero_cinematic_smash_1795260047387.jpg'
+      ),
       available: Boolean(product.available),
       supportsCombo: Boolean(product.supportsCombo),
       comboExtraUsd: Number(Math.max(0, Math.min(50, product.comboExtraUsd)).toFixed(2)),
@@ -147,7 +151,10 @@ export async function seedCatalogToFirestore(items: MenuItem[]): Promise<void> {
         calories: item.calories.slice(0, 30),
         description: item.description.slice(0, 400),
         priceUsd: Number(item.priceUsd.toFixed(2)),
-        image: item.image.slice(0, 240),
+        image: sanitizeImageUrl(
+          item.image,
+          '/src/assets/images/hero_cinematic_smash_1795260047387.jpg'
+        ),
         available: item.available,
         supportsCombo: item.supportsCombo,
         comboExtraUsd: Number(item.comboExtraUsd.toFixed(2)),
@@ -297,7 +304,10 @@ export async function upsertCartItem(uid: string, item: CartItemDoc): Promise<vo
       quantity: Math.max(1, Math.min(50, Math.round(item.quantity))),
       variant: item.variant,
       addons: cleanAddons,
-      image: item.image.slice(0, 240),
+      image: sanitizeImageUrl(
+        item.image,
+        '/src/assets/images/hero_cinematic_smash_1795260047387.jpg'
+      ),
       updatedAt: serverTimestamp(),
     };
     if (item.notes && item.notes.trim().length > 0) {

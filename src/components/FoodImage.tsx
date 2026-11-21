@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Utensils } from 'lucide-react';
+import { isValidImageLink } from '../utils/imageUpload';
 
 interface FoodImageProps {
   src: string;
@@ -9,12 +10,13 @@ interface FoodImageProps {
 
 export function FoodImage({ src, alt, className = '' }: FoodImageProps) {
   const [failed, setFailed] = useState(false);
+  const validSrc = isValidImageLink(src);
 
   useEffect(() => {
     setFailed(false);
   }, [src]);
 
-  if (failed) {
+  if (failed || !validSrc) {
     return (
       <div
         className={`w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-200 flex flex-col items-center justify-center text-zinc-500 p-4 text-center ${className}`}
@@ -29,7 +31,7 @@ export function FoodImage({ src, alt, className = '' }: FoodImageProps) {
 
   return (
     <img
-      src={src}
+      src={src.trim()}
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}

@@ -24,19 +24,19 @@ function buildWelcomeSlides(brandName: string) {
       index: '01',
       kicker: `Bienvenue chez ${brandName}`,
       headline: 'Ici, le goût commence à l’instant où vous entrez.',
-      subline: 'Pain potato doré · Sauce fumée · Laitue romaine · Tomates mûres',
+      subline: 'Pain sésame brioché · Bacon fumé croustillant · Tomates charnues',
     },
     {
       index: '02',
       kicker: 'Notre promesse',
       headline: 'Rien n’est préparé d’avance. Tout prend vie devant vous.',
-      subline: 'Double cheddar affiné · Bœuf Charolais saisi à 260°C',
+      subline: 'Cheddar affiné fondant · Steak smashé saisi à vif · Laitue frisée',
     },
     {
       index: '03',
       kicker: 'L’esprit du comptoir',
       headline: 'Installez-vous, respirez la braise, savourez l’instant.',
-      subline: 'Brioche sésame toastée · Sept strates assemblées au millimètre',
+      subline: 'Pain toasté sur grille · Sept strates assemblées au millimètre',
     },
     {
       index: '04',
@@ -60,11 +60,11 @@ export function BurgerStorySection({
   const progressBarRef = useRef<HTMLDivElement>(null);
   const layersRef = useRef<BurgerLayerRefs>({
     topBun: null,
-    sauce: null,
-    greens: null,
+    bacon: null,
     tomato: null,
     cheddar: null,
-    patties: null,
+    patty: null,
+    lettuce: null,
     bottomBun: null,
     shadow: null,
     aura: null,
@@ -100,8 +100,8 @@ export function BurgerStorySection({
     const layers = layersRef.current;
     if (!section || !pinnedStage || !burgerScale || reducedMotion) return;
 
-    const { topBun, sauce, greens, tomato, cheddar, patties, bottomBun, shadow, aura } = layers;
-    if (!topBun || !sauce || !greens || !tomato || !cheddar || !patties || !bottomBun) return;
+    const { topBun, bacon, tomato, cheddar, patty, lettuce, bottomBun, shadow, aura } = layers;
+    if (!topBun || !bacon || !tomato || !cheddar || !patty || !lettuce || !bottomBun) return;
 
     const ctx = gsap.context(() => {
       const mm = gsap.matchMedia();
@@ -115,19 +115,22 @@ export function BurgerStorySection({
         (context) => {
           const isMobile = Boolean(context.conditions?.isMobile);
           const isTablet = Boolean(context.conditions?.isTablet);
-          const spread = isMobile ? 0.34 : isTablet ? 0.6 : 0.96;
+          const spread = isMobile ? 0.44 : isTablet ? 0.6 : 0.85;
 
-          gsap.set(topBun, { y: -156 * spread, x: 0, rotationZ: 0, scale: 1.03 });
-          gsap.set(sauce, { y: -106 * spread, x: 0, rotationZ: 0, scale: 0.97, opacity: 0.94 });
-          gsap.set(greens, { y: -58 * spread, x: 0, rotationZ: 0, scale: 1.01 });
-          gsap.set(tomato, { y: -12 * spread, x: 0, rotationZ: 0, scale: 1 });
-          gsap.set(cheddar, { y: 36 * spread, x: 0, rotationZ: 0, scale: 1 });
-          gsap.set(patties, { y: 88 * spread, x: 0, rotationZ: 0, scale: 1 });
-          gsap.set(bottomBun, { y: 146 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(topBun, { y: -215 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(bacon, { y: -127.5 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(tomato, { y: -50 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(cheddar, { y: 7.5 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(patty, { y: 95 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(lettuce, { y: 232.5 * spread, x: 0, rotationZ: 0, scale: 1 });
+          gsap.set(bottomBun, { y: 292.5 * spread, x: 0, rotationZ: 0, scale: 1 });
 
-          if (shadow) gsap.set(shadow, { scale: 0.68, opacity: 0.3 });
-          if (aura) gsap.set(aura, { scale: 0.72, opacity: 0.16 });
-          gsap.set(burgerScale, { scale: 0.96, y: 0 });
+          if (shadow) gsap.set(shadow, { scale: 0.62, opacity: 0.3 });
+          if (aura) gsap.set(aura, { scale: 0.72, opacity: 0.14 });
+          gsap.set(burgerScale, {
+            scale: isMobile ? 0.7 : isTablet ? 0.68 : 0.66,
+            y: 0,
+          });
           if (progressBarRef.current) {
             gsap.set(progressBarRef.current, { scaleX: 0.05 });
           }
@@ -156,29 +159,29 @@ export function BurgerStorySection({
             },
           });
 
-          tl.to(bottomBun, { y: 0, duration: 0.28 }, 0.03)
-            .to(patties, { y: 0, duration: 0.3 }, 0.07)
-            .to(cheddar, { y: 0, duration: 0.28 }, 0.24)
-            .to(tomato, { y: 0, duration: 0.26 }, 0.4)
-            .to(greens, { y: 0, scale: 1, duration: 0.26 }, 0.48)
-            .to(sauce, { y: 0, scale: 1, opacity: 1, duration: 0.24 }, 0.58)
-            .to(topBun, { y: 0, scale: 1, duration: 0.28 }, 0.62)
+          tl.to(bottomBun, { y: 0, duration: 0.32 }, 0.02)
+            .to(lettuce, { y: 0, duration: 0.34 }, 0.06)
+            .to(patty, { y: 0, duration: 0.3 }, 0.2)
+            .to(cheddar, { y: 0, duration: 0.28 }, 0.32)
+            .to(tomato, { y: 0, duration: 0.26 }, 0.44)
+            .to(bacon, { y: 0, duration: 0.26 }, 0.54)
+            .to(topBun, { y: 0, duration: 0.3 }, 0.6)
             .to(
               burgerScale,
               {
-                scale: isMobile ? 1.05 : 1.09,
+                scale: 1.04,
                 y: 0,
-                duration: 0.16,
-                ease: 'power2.out',
+                duration: 0.76,
+                ease: 'power2.inOut',
               },
-              0.84
+              0.08
             );
 
           if (shadow) {
-            tl.to(shadow, { scale: 1.06, opacity: 0.9, duration: 0.55 }, 0.35);
+            tl.to(shadow, { scale: 1.04, opacity: 0.88, duration: 0.55 }, 0.35);
           }
           if (aura) {
-            tl.to(aura, { scale: 1.26, opacity: 0.72, duration: 0.35 }, 0.64);
+            tl.to(aura, { scale: 1.24, opacity: 0.68, duration: 0.35 }, 0.64);
           }
         }
       );
@@ -210,7 +213,7 @@ export function BurgerStorySection({
       id="burger-story"
       ref={sectionRef}
       aria-label="Expérience d’assemblage du burger signature"
-      className="scroll-mt-16 relative bg-[#0E0E11] text-white border-b border-zinc-800/80"
+      className="scroll-mt-16 relative bg-black text-white border-b border-zinc-900"
     >
       <div
         ref={pinnedStageRef}
@@ -220,12 +223,12 @@ export function BurgerStorySection({
             : 'h-[calc(100svh-4rem)] min-h-[540px] lg:min-h-[600px]'
         }`}
       >
-        {/* Subtle studio atmosphere backdrop */}
+        {/* Subtle deep obsidian studio stage lighting matching ingredient photography */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-70"
+          className="absolute inset-0 pointer-events-none opacity-80"
           style={{
             background:
-              'radial-gradient(circle at 65% 48%, rgba(217,35,35,0.16) 0%, rgba(245,158,11,0.06) 28%, rgba(14,14,17,0.96) 66%, #0E0E11 100%)',
+              'radial-gradient(circle at 66% 50%, rgba(217,35,35,0.09) 0%, rgba(245,158,11,0.04) 26%, rgba(0,0,0,0.98) 64%, #000000 100%)',
           }}
           aria-hidden="true"
         />
@@ -317,7 +320,7 @@ export function BurgerStorySection({
           </div>
 
           {/* Straight Centered 7-Layer Burger Stage */}
-          <div className="lg:col-span-6 lg:order-2 flex-1 min-h-0 flex flex-col items-center justify-center relative py-6 sm:py-8 lg:py-0 overflow-hidden lg:overflow-visible">
+          <div className="lg:col-span-6 lg:order-2 flex-1 min-h-0 flex flex-col items-center justify-center relative py-6 sm:py-8 lg:py-0 overflow-visible">
             <div
               ref={burgerScaleRef}
               className="relative flex items-center justify-center will-change-transform"

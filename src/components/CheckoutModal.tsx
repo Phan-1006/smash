@@ -36,6 +36,7 @@ import type {
 import { apiUrl, parseJsonSafe } from '../utils/api';
 import {
   detectCongoleseMobileNetwork,
+  extractNationalDigits,
   type DetectedMobileNetwork,
 } from '../utils/mobileNetwork';
 
@@ -282,12 +283,19 @@ export function CheckoutModal({
       if (data.status === 'PAID') {
         await updateOrderPaymentState(activeOrderId, 'PAID', 'PREPARING');
         await onClearCart();
+        setGatewayMessage(data.gatewayMessage || 'Paiement confirmé.');
         setPaymentPhase('paid');
       } else if (data.status === 'FAILED') {
         await updateOrderPaymentState(activeOrderId, 'FAILED', 'CANCELLED');
+        setGatewayMessage(
+          data.gatewayMessage || 'La transaction a été refusée ou expirée côté opérateur.'
+        );
         setPaymentPhase('failed');
       } else {
-        setGatewayMessage('Toujours en attente de validation sur votre téléphone ou banque.');
+        setGatewayMessage(
+          data.gatewayMessage ||
+            'Toujours en attente de validation sur votre téléphone ou banque.'
+        );
       }
     } catch {
       setErrorMessage('Impossible de vérifier le statut auprès du serveur.');
@@ -309,8 +317,24 @@ export function CheckoutModal({
       return;
     }
     if (customerPhone.trim().length < 8) {
-      setErrorMessage('Veuillez saisir un numéro de téléphone valide (ex. +243...).');
+      setErrorMessage('Veuillez saisir un numéro de téléphone valide (ex. +243 81 234 5678).');
       return;
+    }
+    if (paymentMethod === 'MOBILEMONEY') {
+      const digitsOnly = customerPhone.replace(/\D/g, '');
+      const national = extractNationalDigits(customerPhone);
+      const isDrcInput =
+        digitsOnly.startsWith('243') ||
+        digitsOnly.startsWith('00243') ||
+        digitsOnly.startsWith('08') ||
+        digitsOnly.startsWith('09') ||
+        /^[89]/.test(digitsOnly);
+      if (isDrcInput && !/^[89]\d{8}$/.test(national)) {
+        setErrorMessage(
+          'Numéro Mobile Money incomplet : indiquez les 9 chiffres après 0 ou +243 (ex. +243 81 234 5678).'
+        );
+        return;
+      }
     }
     if (deliveryMode === 'delivery' && deliveryAddress.trim().length < 4) {
       setErrorMessage('Veuillez saisir une adresse de livraison précise.');
@@ -405,7 +429,7 @@ export function CheckoutModal({
       }
 
       setGatewayMessage(result.gatewayMessage || null);
-      if (result.paymentPageUrl) {
+      if (result.paymentPageUrl && /^https:\/\//i.test(result.paymentPageUrl)) {
         setPaymentPageUrl(result.paymentPageUrl);
       }
 
@@ -555,7 +579,7 @@ export function CheckoutModal({
                 </div>
                 <div>
                   <h3 className="font-display text-xl font-extrabold text-[#141414] mb-1">
-                    {paymentMethod === 'CARD'
+                    {paymentMethod === 'CARD' || paymentPageUrl
                       ? 'Finalisez le paiement sur la page sécurisée'
                       : 'Confirmez le push USSD sur votre téléphone'}
                   </h3>
@@ -882,6 +906,12 @@ export function CheckoutModal({
                           );
                         })}
                       </div>
+                      {detectedNetwork && detectedNetwork.provider !== mobileProvider && (
+                        <p className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          Le préfixe {detectedNetwork.prefix} correspond habituellement à{' '}
+                          <span className="font-semibold">{detectedNetwork.brandName}</span>.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

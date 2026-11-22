@@ -1,11 +1,31 @@
-import { initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
+import {
+  doc,
+  type Firestore,
+  getDocFromServer,
+  getFirestore,
+  initializeFirestore,
+} from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+function createFirestoreClient(): Firestore {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = createFirestoreClient();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({

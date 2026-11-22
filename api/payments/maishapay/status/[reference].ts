@@ -35,8 +35,23 @@ function sendJson(
   res.end(JSON.stringify(payload));
 }
 
+function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown> {
+  const original = raw.original;
+  if (original && typeof original === 'object') {
+    const origObj = original as Record<string, unknown>;
+    if (origObj.data && typeof origObj.data === 'object') {
+      return { ...raw, ...origObj, ...(origObj.data as Record<string, unknown>) };
+    }
+    return { ...raw, ...origObj };
+  }
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+    return { ...raw, ...(raw.data as Record<string, unknown>) };
+  }
+  return raw;
+}
+
 function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
-  const s = raw.toUpperCase();
+  const s = raw.toUpperCase().trim();
   if (
     s === 'SUCCESS' ||
     s === 'SUCCESSFUL' ||
@@ -47,7 +62,16 @@ function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
   ) {
     return 'PAID';
   }
-  if (s === 'FAILED' || s === 'DECLINED' || s === 'CANCELLED' || s === 'REJECTED') {
+  if (
+    s === 'FAILED' ||
+    s === 'DECLINED' ||
+    s === 'CANCELLED' ||
+    s === 'CANCELED' ||
+    s === 'REJECTED' ||
+    s === 'EXPIRED' ||
+    s === 'TIMEOUT' ||
+    s === 'ERROR'
+  ) {
     return 'FAILED';
   }
   return 'PENDING';
@@ -95,7 +119,8 @@ export default async function handler(req: VercelIncoming, res: ServerResponse):
         }),
       });
       if (checkResp.ok) {
-        const checkData = (await checkResp.json()) as Record<string, unknown>;
+        const rawCheck = (await checkResp.json()) as Record<string, unknown>;
+        const checkData = unwrapGatewayData(rawCheck);
         const remoteRaw = String(checkData.transactionStatus || checkData.status || '');
         if (remoteRaw) {
           const remoteMapped = mapStatus(remoteRaw);

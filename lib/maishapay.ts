@@ -94,15 +94,49 @@ export function generateTxReference(): string {
 }
 
 export function normalizePhone(phone: string): string {
-  const cleaned = phone.replace(/[\s()-]/g, '');
-  if (cleaned.startsWith('+')) return cleaned;
-  if (cleaned.startsWith('00')) return `+${cleaned.slice(2)}`;
-  if (cleaned.startsWith('0') && cleaned.length === 10) return `+243${cleaned.slice(1)}`;
-  return `+${cleaned}`;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Strip international prefix 00243 or 243 (plus optional extra leading 0 like +243081...)
+  let national = digits;
+  if (national.startsWith('00243')) {
+    national = national.slice(5);
+  } else if (national.startsWith('243')) {
+    national = national.slice(3);
+  }
+
+  if (national.startsWith('0') && national.length === 10) {
+    national = national.slice(1);
+  }
+
+  // Standard DRC subscriber numbers are 9 digits (e.g. 812345678, 842345678, 991234567)
+  if (national.length === 9 && /^[89]\d{8}$/.test(national)) {
+    return `+243${national}`;
+  }
+
+  const trimmed = phone.replace(/[\s().-]/g, '');
+  if (trimmed.startsWith('+')) return trimmed;
+  if (trimmed.startsWith('00')) return `+${trimmed.slice(2)}`;
+  return `+${digits}`;
+}
+
+function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown> {
+  const original = raw.original;
+  if (original && typeof original === 'object') {
+    const origObj = original as Record<string, unknown>;
+    if (origObj.data && typeof origObj.data === 'object') {
+      return { ...raw, ...origObj, ...(origObj.data as Record<string, unknown>) };
+    }
+    return { ...raw, ...origObj };
+  }
+  if (raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)) {
+    return { ...raw, ...(raw.data as Record<string, unknown>) };
+  }
+  return raw;
 }
 
 export function mapMaishaPayStatus(raw: string): PaymentStatus {
-  const s = raw.toUpperCase();
+  const s = raw.toUpperCase().trim();
   if (
     s === 'SUCCESS' ||
     s === 'SUCCESSFUL' ||
@@ -113,16 +147,30 @@ export function mapMaishaPayStatus(raw: string): PaymentStatus {
   ) {
     return 'PAID';
   }
-  if (s === 'FAILED' || s === 'DECLINED' || s === 'CANCELLED' || s === 'REJECTED') {
+  if (
+    s === 'FAILED' ||
+    s === 'DECLINED' ||
+    s === 'CANCELLED' ||
+    s === 'CANCELED' ||
+    s === 'REJECTED' ||
+    s === 'EXPIRED' ||
+    s === 'TIMEOUT' ||
+    s === 'ERROR'
+  ) {
     return 'FAILED';
   }
   return 'PENDING';
 }
 
-export function extractMaishaPayError(data: Record<string, unknown>, httpStatus: number): string {
-  if (data.errors && typeof data.errors === 'object') {
+export function extractMaishaPayError(
+  data: Record<string, unknown>,
+  httpStatus: number,
+  provider?: string
+): string {
+  const unwrapped = unwrapGatewayData(data);
+  if (unwrapped.errors && typeof unwrapped.errors === 'object') {
     const messages: string[] = [];
-    for (const [field, val] of Object.entries(data.errors as Record<string, unknown>)) {
+    for (const [field, val] of Object.entries(unwrapped.errors as Record<string, unknown>)) {
       if (Array.isArray(val)) {
         messages.push(`${field}: ${val.join(', ')}`);
       } else if (typeof val === 'string') {
@@ -133,12 +181,29 @@ export function extractMaishaPayError(data: Record<string, unknown>, httpStatus:
       return messages.join(' | ');
     }
   }
-  if (typeof data.message === 'string' && data.message.trim()) return data.message;
-  if (typeof data.transactionDescription === 'string' && data.transactionDescription.trim()) {
-    return data.transactionDescription;
+  const candidateKeys = [
+    'transactionDescription',
+    'statusDescription',
+    'description',
+    'message',
+    'error',
+    'reason',
+    'detail',
+    'title',
+  ] as const;
+  for (const key of candidateKeys) {
+    const val = unwrapped[key];
+    if (typeof val === 'string' && val.trim()) {
+      return val.trim();
+    }
   }
-  if (typeof data.error === 'string' && data.error.trim()) return data.error;
-  if (typeof data.title === 'string' && data.title.trim()) return data.title;
+  if (typeof unwrapped.rawMessage === 'string' && unwrapped.rawMessage.trim()) {
+    return `MaishaPay (${httpStatus}): ${unwrapped.rawMessage.trim().slice(0, 180)}`;
+  }
+  if (String(unwrapped.transactionStatus || '').toUpperCase() === 'FAILED') {
+    const providerLabel = provider ? ` (${provider})` : '';
+    return `Transaction refusée par l’opérateur${providerLabel}. Vérifiez que le numéro est actif, que votre solde est suffisant, ou essayez en CDF / Carte Bancaire.`;
+  }
   return `Erreur passerelle MaishaPay (${httpStatus})`;
 }
 
@@ -254,28 +319,76 @@ export async function processMobileMoneyPayment(
     });
 
     const rawText = await response.text();
-    let data: Record<string, unknown> = {};
+    let parsed: Record<string, unknown> = {};
     try {
-      data = JSON.parse(rawText) as Record<string, unknown>;
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
     } catch {
-      data = { rawMessage: rawText };
+      parsed = { rawMessage: rawText };
     }
 
-    const bodyStatusCode = typeof data.status_code === 'number' ? data.status_code : response.status;
+    const data = unwrapGatewayData(parsed);
+    const bodyStatusCode =
+      typeof data.status_code === 'number'
+        ? data.status_code
+        : typeof data.status === 'number'
+        ? data.status
+        : response.status;
+
+    const statusRaw = String(data.transactionStatus || data.status || 'PENDING');
+    const mappedGatewayStatus = mapMaishaPayStatus(statusRaw);
+
     if (!response.ok || bodyStatusCode >= 400) {
-      const message = extractMaishaPayError(data, bodyStatusCode);
-      console.error('MaishaPay Mobile Money error:', bodyStatusCode, data);
+      const message = extractMaishaPayError(data, bodyStatusCode, normalizedProvider);
+      console.warn(
+        `MaishaPay Mobile Money (${normalizedProvider}) rejected (${bodyStatusCode}): ${message}`
+      );
+
+      // If MaishaPay explicitly returned a transactionStatus of FAILED without field validation errors,
+      // return a structured FAILED transaction record so the checkout UI shows the refusal cleanly.
+      const hasFieldErrors = Boolean(data.errors && typeof data.errors === 'object');
+      if (mappedGatewayStatus === 'FAILED' && !hasFieldErrors) {
+        const failedRecord: TransactionRecord = {
+          transactionReference: txRef,
+          channel: 'MOBILEMONEY',
+          provider: normalizedProvider,
+          amount: formattedAmount,
+          currency: normalizedCurrency,
+          customerPhoneNumber: formattedPhone,
+          status: 'FAILED',
+          originatingTransactionId:
+            typeof data.originatingTransactionId === 'string'
+              ? data.originatingTransactionId
+              : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
+              ? String(data.transactionId)
+              : undefined,
+          gatewayMessage: message,
+          updatedAt: new Date().toISOString(),
+        };
+        transactionsStore.set(txRef, failedRecord);
+        return {
+          statusCode: 200,
+          payload: {
+            ...failedRecord,
+          },
+        };
+      }
+
       return {
         statusCode: bodyStatusCode >= 400 && bodyStatusCode < 600 ? bodyStatusCode : 502,
         payload: {
-          error: message,
-          details: data,
+          error: `[${normalizedProvider}] ${message}`,
+          provider: normalizedProvider,
         },
       };
     }
 
-    const statusRaw = String(data.transactionStatus || data.status || 'PENDING');
-    const normalizedStatus = mapMaishaPayStatus(statusRaw);
+    const normalizedStatus = mappedGatewayStatus;
+    const paymentPageUrl =
+      (typeof data.paymentPage === 'string' && data.paymentPage) ||
+      (typeof data.redirectUrl === 'string' && data.redirectUrl) ||
+      (typeof data.url === 'string' && data.url) ||
+      (typeof data.checkoutUrl === 'string' && data.checkoutUrl) ||
+      undefined;
 
     const record: TransactionRecord = {
       transactionReference: txRef,
@@ -291,10 +404,13 @@ export async function processMobileMoneyPayment(
           : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
           ? String(data.transactionId)
           : undefined,
+      paymentPageUrl,
       gatewayMessage:
-        (typeof data.message === 'string' && data.message) ||
         (typeof data.transactionDescription === 'string' && data.transactionDescription) ||
-        'Demande USSD envoyée. Veuillez valider sur votre téléphone.',
+        (typeof data.message === 'string' && data.message) ||
+        (paymentPageUrl
+          ? 'Veuillez finaliser la validation Mobile Money sur la page sécurisée MaishaPay.'
+          : 'Demande USSD envoyée. Veuillez valider sur votre téléphone.'),
       updatedAt: new Date().toISOString(),
     };
 
@@ -303,7 +419,6 @@ export async function processMobileMoneyPayment(
       statusCode: 200,
       payload: {
         ...record,
-        gatewayResponse: data,
       },
     };
   } catch (err) {
@@ -396,22 +511,27 @@ export async function processCardPayment(
     });
 
     const rawText = await response.text();
-    let data: Record<string, unknown> = {};
+    let parsed: Record<string, unknown> = {};
     try {
-      data = JSON.parse(rawText) as Record<string, unknown>;
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
     } catch {
-      data = { rawMessage: rawText };
+      parsed = { rawMessage: rawText };
     }
 
-    const bodyStatusCode = typeof data.status_code === 'number' ? data.status_code : response.status;
+    const data = unwrapGatewayData(parsed);
+    const bodyStatusCode =
+      typeof data.status_code === 'number'
+        ? data.status_code
+        : typeof data.status === 'number'
+        ? data.status
+        : response.status;
     if (!response.ok || bodyStatusCode >= 400) {
-      const message = extractMaishaPayError(data, bodyStatusCode);
-      console.error('MaishaPay Card error:', bodyStatusCode, data);
+      const message = extractMaishaPayError(data, bodyStatusCode, 'VISA_MASTERCARD');
+      console.warn(`MaishaPay Card rejected (${bodyStatusCode}): ${message}`);
       return {
         statusCode: bodyStatusCode >= 400 && bodyStatusCode < 600 ? bodyStatusCode : 502,
         payload: {
           error: message,
-          details: data,
         },
       };
     }
@@ -544,7 +664,8 @@ export async function checkTransactionStatus(reference: string): Promise<ApiResu
         }),
       });
       if (checkResp.ok) {
-        const checkData = (await checkResp.json()) as Record<string, unknown>;
+        const rawCheck = (await checkResp.json()) as Record<string, unknown>;
+        const checkData = unwrapGatewayData(rawCheck);
         const remoteRaw = String(checkData.transactionStatus || checkData.status || '');
         if (remoteRaw) {
           const remoteMapped = mapMaishaPayStatus(remoteRaw);

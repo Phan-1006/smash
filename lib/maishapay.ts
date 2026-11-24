@@ -124,7 +124,7 @@ function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown
   const original = raw.original;
   if (original && typeof original === 'object') {
     const origObj = original as Record<string, unknown>;
-    if (origObj.data && typeof origObj.data === 'object') {
+    if (origObj.data && typeof origObj.data === 'object' && !Array.isArray(origObj.data)) {
       return { ...raw, ...origObj, ...(origObj.data as Record<string, unknown>) };
     }
     return { ...raw, ...origObj };
@@ -135,6 +135,15 @@ function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown
   return raw;
 }
 
+function parseStatusCode(data: Record<string, unknown>, fallbackStatus: number): number {
+  const candidates = [data.status_code, data.statusCode, data.code, data.status];
+  for (const val of candidates) {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val === 'string' && /^\d{3}$/.test(val.trim())) return Number(val.trim());
+  }
+  return fallbackStatus;
+}
+
 export function mapMaishaPayStatus(raw: string): PaymentStatus {
   const s = raw.toUpperCase().trim();
   if (
@@ -142,8 +151,7 @@ export function mapMaishaPayStatus(raw: string): PaymentStatus {
     s === 'SUCCESSFUL' ||
     s === 'PAID' ||
     s === 'APPROVED' ||
-    s === 'COMPLETED' ||
-    s === '200'
+    s === 'COMPLETED'
   ) {
     return 'PAID';
   }
@@ -184,6 +192,9 @@ export function extractMaishaPayError(
   const candidateKeys = [
     'transactionDescription',
     'statusDescription',
+    'operatorMessage',
+    'error_description',
+    'statusMessage',
     'description',
     'message',
     'error',
@@ -205,6 +216,149 @@ export function extractMaishaPayError(
     return `Transaction refusée par l’opérateur${providerLabel}. Vérifiez que le numéro est actif, que votre solde est suffisant, ou essayez en CDF / Carte Bancaire.`;
   }
   return `Erreur passerelle MaishaPay (${httpStatus})`;
+}
+
+async function createHostedCheckoutFallback(params: {
+  creds: ReturnType<typeof getMaishaPayCredentials>;
+  txRef: string;
+  amount: string;
+  currency: string;
+  callbackUrl: string;
+}): Promise<string | undefined> {
+  try {
+    const form = new URLSearchParams();
+    form.set('gatewayMode', params.creds.gatewayMode);
+    form.set('publicApiKey', params.creds.publicApiKey);
+    form.set('secretApiKey', params.creds.secretApiKey);
+    form.set('transactionReference', params.txRef);
+    form.set('montant', params.amount);
+    form.set('devise', params.currency);
+    form.set('callbackUrl', params.callbackUrl);
+
+    const resp = await fetch(`${MAISHAPAY_BASE_URL}/payment/vers1.0/merchant/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html,application/xhtml+xml,application/json',
+      },
+      body: form.toString(),
+      redirect: 'manual',
+    });
+
+    const location = resp.headers.get('location')?.trim();
+    if (!location) return undefined;
+
+    const resolved = location.startsWith('http')
+      ? location
+      : `${MAISHAPAY_BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+
+    if (/\/checkout\/errors?\b/i.test(resolved)) {
+      return undefined;
+    }
+    if (/^https:\/\//i.test(resolved)) {
+      return resolved;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function tryV1MobileMoneyFallback(params: {
+  creds: ReturnType<typeof getMaishaPayCredentials>;
+  txRef: string;
+  amount: number;
+  currency: string;
+  customerFullName: string;
+  customerPhoneNumber: string;
+  customerEmail: string;
+  provider: string;
+  callbackUrl: string;
+}): Promise<TransactionRecord | null> {
+  try {
+    const v1Payload = {
+      gatewayMode: Number(params.creds.gatewayMode) === 0 ? 0 : 1,
+      publicApiKey: params.creds.publicApiKey,
+      secretApiKey: params.creds.secretApiKey,
+      transactionReference: params.txRef,
+      amount: params.amount,
+      currency: params.currency,
+      customerFullName: params.customerFullName,
+      customerPhoneNumber: params.customerPhoneNumber,
+      customerEmailAddress: params.customerEmail,
+      chanel: 'MOBILEMONEY',
+      provider: params.provider,
+      walletID: params.customerPhoneNumber,
+      callbackUrl: params.callbackUrl,
+    };
+
+    const resp = await fetch(`${MAISHAPAY_BASE_URL}/api/payment/rest/vers1.0/merchant`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(v1Payload),
+    });
+
+    const rawText = await resp.text();
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+
+    const data = unwrapGatewayData(parsed);
+    const code = parseStatusCode(data, resp.status);
+    const statusRaw = String(
+      data.transactionStatus ||
+        data.paymentStatus ||
+        (typeof data.status === 'string' && !/^\d+$/.test(data.status.trim()) ? data.status : '') ||
+        'PENDING'
+    );
+    const mapped = mapMaishaPayStatus(statusRaw);
+
+    if (!resp.ok || code >= 400 || mapped === 'FAILED') {
+      console.log(
+        `MaishaPay v1 fallback (${params.provider}) non retenu (http=${resp.status}, code=${code}, txStatus=${statusRaw})`
+      );
+      return null;
+    }
+
+    const paymentPageUrl =
+      (typeof data.paymentPage === 'string' && data.paymentPage) ||
+      (typeof data.redirectUrl === 'string' && data.redirectUrl) ||
+      (typeof data.url === 'string' && data.url) ||
+      undefined;
+
+    return {
+      transactionReference: params.txRef,
+      channel: 'MOBILEMONEY',
+      provider: params.provider,
+      amount:
+        params.currency === 'CDF'
+          ? String(Math.round(params.amount))
+          : params.amount.toFixed(2),
+      currency: params.currency,
+      customerPhoneNumber: params.customerPhoneNumber,
+      status: mapped,
+      originatingTransactionId:
+        typeof data.originatingTransactionId === 'string'
+          ? data.originatingTransactionId
+          : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
+          ? String(data.transactionId)
+          : undefined,
+      paymentPageUrl,
+      gatewayMessage:
+        (typeof data.transactionDescription === 'string' && data.transactionDescription) ||
+        (typeof data.message === 'string' && data.message) ||
+        'Demande USSD envoyée. Veuillez valider sur votre téléphone.',
+      updatedAt: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface ApiResult {
@@ -327,26 +481,81 @@ export async function processMobileMoneyPayment(
     }
 
     const data = unwrapGatewayData(parsed);
-    const bodyStatusCode =
-      typeof data.status_code === 'number'
-        ? data.status_code
-        : typeof data.status === 'number'
-        ? data.status
-        : response.status;
+    const bodyStatusCode = parseStatusCode(data, response.status);
 
-    const statusRaw = String(data.transactionStatus || data.status || 'PENDING');
+    const statusRaw = String(
+      data.transactionStatus ||
+        data.paymentStatus ||
+        (typeof data.status === 'string' && !/^\d+$/.test(data.status.trim()) ? data.status : '') ||
+        'PENDING'
+    );
     const mappedGatewayStatus = mapMaishaPayStatus(statusRaw);
 
     if (!response.ok || bodyStatusCode >= 400) {
       const message = extractMaishaPayError(data, bodyStatusCode, normalizedProvider);
-      console.warn(
-        `MaishaPay Mobile Money (${normalizedProvider}) rejected (${bodyStatusCode}): ${message}`
+      console.log(
+        `MaishaPay Mobile Money (${normalizedProvider}) info (http=${response.status}, body=${bodyStatusCode}, txStatus=${statusRaw}): ${message}`
       );
 
       // If MaishaPay explicitly returned a transactionStatus of FAILED without field validation errors,
-      // return a structured FAILED transaction record so the checkout UI shows the refusal cleanly.
+      // try v1 corporate C2B and then MaishaPay's hosted checkout page before returning FAILED.
       const hasFieldErrors = Boolean(data.errors && typeof data.errors === 'object');
       if (mappedGatewayStatus === 'FAILED' && !hasFieldErrors) {
+        const v1TxRef = `${txRef}-V1`;
+        const v1Record = await tryV1MobileMoneyFallback({
+          creds,
+          txRef: v1TxRef,
+          amount: Number(formattedAmount),
+          currency: normalizedCurrency,
+          customerFullName: (customerFullName || 'Client Maison Smash').slice(0, 80),
+          customerPhoneNumber: formattedPhone,
+          customerEmail: (customerEmail || 'client@maisonsmash.com').slice(0, 160),
+          provider: normalizedProvider,
+          callbackUrl,
+        });
+
+        if (v1Record) {
+          transactionsStore.set(v1Record.transactionReference, v1Record);
+          return {
+            statusCode: 200,
+            payload: { ...v1Record },
+          };
+        }
+
+        const hostedFallbackUrl = await createHostedCheckoutFallback({
+          creds,
+          txRef: `${txRef}-CHK`,
+          amount: formattedAmount,
+          currency: normalizedCurrency,
+          callbackUrl,
+        });
+
+        if (hostedFallbackUrl) {
+          const fallbackRecord: TransactionRecord = {
+            transactionReference: `${txRef}-CHK`,
+            channel: 'MOBILEMONEY',
+            provider: normalizedProvider,
+            amount: formattedAmount,
+            currency: normalizedCurrency,
+            customerPhoneNumber: formattedPhone,
+            status: 'PENDING',
+            originatingTransactionId:
+              typeof data.originatingTransactionId === 'string'
+                ? data.originatingTransactionId
+                : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
+                ? String(data.transactionId)
+                : undefined,
+            paymentPageUrl: hostedFallbackUrl,
+            gatewayMessage: `Le push USSD direct (${normalizedProvider}) n’a pas abouti. Finalisez votre paiement sur la page sécurisée MaishaPay.`,
+            updatedAt: new Date().toISOString(),
+          };
+          transactionsStore.set(fallbackRecord.transactionReference, fallbackRecord);
+          return {
+            statusCode: 200,
+            payload: { ...fallbackRecord },
+          };
+        }
+
         const failedRecord: TransactionRecord = {
           transactionReference: txRef,
           channel: 'MOBILEMONEY',
@@ -527,7 +736,7 @@ export async function processCardPayment(
         : response.status;
     if (!response.ok || bodyStatusCode >= 400) {
       const message = extractMaishaPayError(data, bodyStatusCode, 'VISA_MASTERCARD');
-      console.warn(`MaishaPay Card rejected (${bodyStatusCode}): ${message}`);
+      console.log(`MaishaPay Card info (${bodyStatusCode}): ${message}`);
       return {
         statusCode: bodyStatusCode >= 400 && bodyStatusCode < 600 ? bodyStatusCode : 502,
         payload: {
@@ -666,18 +875,30 @@ export async function checkTransactionStatus(reference: string): Promise<ApiResu
       if (checkResp.ok) {
         const rawCheck = (await checkResp.json()) as Record<string, unknown>;
         const checkData = unwrapGatewayData(rawCheck);
-        const remoteRaw = String(checkData.transactionStatus || checkData.status || '');
-        if (remoteRaw) {
+        const checkCode = parseStatusCode(checkData, checkResp.status);
+        const explicitTxStatus = String(
+          checkData.transactionStatus || checkData.paymentStatus || ''
+        ).trim();
+        const remoteRaw =
+          explicitTxStatus ||
+          (typeof checkData.status === 'string' && !/^\d+$/.test(checkData.status.trim())
+            ? checkData.status.trim()
+            : '');
+        if (remoteRaw && checkCode < 500) {
           const remoteMapped = mapMaishaPayStatus(remoteRaw);
+          // Only promote to FAILED during polling if MaishaPay explicitly reported transactionStatus/paymentStatus failure
+          const effectiveStatus =
+            remoteMapped === 'FAILED' && !explicitTxStatus ? 'PENDING' : remoteMapped;
           const remoteMsg =
             (typeof checkData.transactionDescription === 'string' &&
               checkData.transactionDescription) ||
+            (typeof checkData.statusDescription === 'string' && checkData.statusDescription) ||
             (typeof checkData.message === 'string' && checkData.message) ||
             record?.gatewayMessage;
 
           if (record) {
-            if (remoteMapped !== 'PENDING') {
-              record.status = remoteMapped;
+            if (effectiveStatus !== 'PENDING') {
+              record.status = effectiveStatus;
               record.gatewayMessage = remoteMsg;
               record.updatedAt = new Date().toISOString();
               transactionsStore.set(ref, record);
@@ -689,7 +910,7 @@ export async function checkTransactionStatus(reference: string): Promise<ApiResu
             statusCode: 200,
             payload: {
               transactionReference: ref,
-              status: remoteMapped,
+              status: effectiveStatus,
               gatewayMessage: remoteMsg,
               updatedAt: new Date().toISOString(),
             },

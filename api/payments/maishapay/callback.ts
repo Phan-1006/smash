@@ -62,8 +62,7 @@ function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
     s === 'SUCCESSFUL' ||
     s === 'PAID' ||
     s === 'APPROVED' ||
-    s === 'COMPLETED' ||
-    s === '200'
+    s === 'COMPLETED'
   ) {
     return 'PAID';
   }

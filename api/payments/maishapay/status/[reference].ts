@@ -57,8 +57,7 @@ function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
     s === 'SUCCESSFUL' ||
     s === 'PAID' ||
     s === 'APPROVED' ||
-    s === 'COMPLETED' ||
-    s === '200'
+    s === 'COMPLETED'
   ) {
     return 'PAID';
   }
@@ -121,17 +120,27 @@ export default async function handler(req: VercelIncoming, res: ServerResponse):
       if (checkResp.ok) {
         const rawCheck = (await checkResp.json()) as Record<string, unknown>;
         const checkData = unwrapGatewayData(rawCheck);
-        const remoteRaw = String(checkData.transactionStatus || checkData.status || '');
+        const explicitTxStatus = String(
+          checkData.transactionStatus || checkData.paymentStatus || ''
+        ).trim();
+        const remoteRaw =
+          explicitTxStatus ||
+          (typeof checkData.status === 'string' && !/^\d+$/.test(checkData.status.trim())
+            ? checkData.status.trim()
+            : '');
         if (remoteRaw) {
           const remoteMapped = mapStatus(remoteRaw);
+          const effectiveStatus =
+            remoteMapped === 'FAILED' && !explicitTxStatus ? 'PENDING' : remoteMapped;
           const remoteMsg =
             (typeof checkData.transactionDescription === 'string' &&
               checkData.transactionDescription) ||
+            (typeof checkData.statusDescription === 'string' && checkData.statusDescription) ||
             (typeof checkData.message === 'string' && checkData.message) ||
             undefined;
           sendJson(req, res, 200, {
             transactionReference: ref,
-            status: remoteMapped,
+            status: effectiveStatus,
             gatewayMessage: remoteMsg,
             updatedAt: new Date().toISOString(),
           });

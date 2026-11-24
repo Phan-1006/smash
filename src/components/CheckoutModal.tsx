@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { User } from 'firebase/auth';
 import {
   AlertCircle,
@@ -105,9 +105,25 @@ export function CheckoutModal({
   const [paymentPhase, setPaymentPhase] = useState<
     'form' | 'awaiting_confirmation' | 'paid' | 'failed'
   >('form');
+  const wasOpenRef = useRef(false);
+
+  const safeUpdateOrderState = async (
+    orderId: string,
+    paymentStatus: 'PENDING' | 'PAID' | 'FAILED',
+    orderStatus: 'AWAITING_PAYMENT' | 'PREPARING' | 'CANCELLED'
+  ) => {
+    try {
+      await updateOrderPaymentState(orderId, paymentStatus, orderStatus);
+    } catch {
+      // Non-fatal Firestore sync error
+    }
+  };
 
   useEffect(() => {
-    if (!open) return;
+    const isOpening = open && !wasOpenRef.current;
+    wasOpenRef.current = open;
+    if (!isOpening) return;
+
     setErrorMessage(null);
     setLocationError(null);
     setPaymentPhase('form');
@@ -116,30 +132,33 @@ export function CheckoutModal({
     setPaymentPageUrl(null);
     setGatewayMessage(null);
 
-    if (user) {
-      setCustomerName((prev) => prev || profile?.displayName || user.displayName || '');
-      const initialPhone = customerPhone || profile?.phone || '';
-      if (!customerPhone && profile?.phone) {
-        setCustomerPhone(profile.phone);
-      }
-      const initialDetected = detectCongoleseMobileNetwork(initialPhone);
-      setDetectedNetwork(initialDetected);
-      if (initialDetected) {
-        setMobileProvider(initialDetected.provider);
-      }
-      setDeliveryAddress(
-        (prev) =>
-          prev ||
-          (deliveryMode === 'pickup'
-            ? `Comptoir ${siteSettings.brandName} — ${siteSettings.storeAddress}`
-            : profile?.defaultAddress || '')
-      );
-    }
-
     fetch(apiUrl('/api/payments/maishapay/config'))
       .then((res) => parseJsonSafe<MaishaPayConfigResponse>(res))
       .then((data) => setGatewayConfig(data))
       .catch(() => setGatewayConfig(null));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !user) return;
+    setCustomerName((prev) => prev || profile?.displayName || user.displayName || '');
+    setCustomerPhone((prev) => {
+      if (prev) return prev;
+      const initialPhone = profile?.phone || '';
+      if (initialPhone) {
+        const initialDetected = detectCongoleseMobileNetwork(initialPhone);
+        setDetectedNetwork(initialDetected);
+        if (initialDetected) {
+          setMobileProvider(initialDetected.provider);
+        }
+      }
+      return initialPhone;
+    });
+    setDeliveryAddress((prev) => {
+      if (deliveryMode === 'pickup') {
+        return `Comptoir ${siteSettings.brandName} — ${siteSettings.storeAddress}`;
+      }
+      return prev || profile?.defaultAddress || '';
+    });
   }, [open, user, profile, deliveryMode, siteSettings.brandName, siteSettings.storeAddress]);
 
   // Poll transaction status when awaiting Mobile Money / Card confirmation
@@ -160,12 +179,16 @@ export function CheckoutModal({
         }>(res);
         if (!data) return;
         if (data.status === 'PAID') {
-          await updateOrderPaymentState(activeOrderId, 'PAID', 'PREPARING');
-          await onClearCart();
+          await safeUpdateOrderState(activeOrderId, 'PAID', 'PREPARING');
+          try {
+            await onClearCart();
+          } catch {
+            // Cart will sync on next snapshot
+          }
           setGatewayMessage(data.gatewayMessage || 'Paiement confirmé.');
           setPaymentPhase('paid');
         } else if (data.status === 'FAILED') {
-          await updateOrderPaymentState(activeOrderId, 'FAILED', 'CANCELLED');
+          await safeUpdateOrderState(activeOrderId, 'FAILED', 'CANCELLED');
           setGatewayMessage(data.gatewayMessage || 'La transaction a été refusée ou annulée.');
           setPaymentPhase('failed');
         }
@@ -281,12 +304,16 @@ export function CheckoutModal({
       }>(res);
       if (!data) return;
       if (data.status === 'PAID') {
-        await updateOrderPaymentState(activeOrderId, 'PAID', 'PREPARING');
-        await onClearCart();
+        await safeUpdateOrderState(activeOrderId, 'PAID', 'PREPARING');
+        try {
+          await onClearCart();
+        } catch {
+          // Cart will sync on next snapshot
+        }
         setGatewayMessage(data.gatewayMessage || 'Paiement confirmé.');
         setPaymentPhase('paid');
       } else if (data.status === 'FAILED') {
-        await updateOrderPaymentState(activeOrderId, 'FAILED', 'CANCELLED');
+        await safeUpdateOrderState(activeOrderId, 'FAILED', 'CANCELLED');
         setGatewayMessage(
           data.gatewayMessage || 'La transaction a été refusée ou expirée côté opérateur.'
         );
@@ -412,13 +439,14 @@ export function CheckoutModal({
 
       const result = await parseJsonSafe<{
         error?: string;
+        transactionReference?: string;
         status?: 'PENDING' | 'PAID' | 'FAILED';
         gatewayMessage?: string;
         paymentPageUrl?: string;
       }>(response);
 
       if (!response.ok || !result) {
-        await updateOrderPaymentState(orderId, 'FAILED', 'CANCELLED');
+        await safeUpdateOrderState(orderId, 'FAILED', 'CANCELLED');
         const fallbackError =
           response.status === 404
             ? 'Service de paiement introuvable (/api). Redéployez avec les routes API et vos clés serveur.'
@@ -428,17 +456,24 @@ export function CheckoutModal({
         return;
       }
 
+      if (result.transactionReference) {
+        setActiveTxRef(result.transactionReference);
+      }
       setGatewayMessage(result.gatewayMessage || null);
       if (result.paymentPageUrl && /^https:\/\//i.test(result.paymentPageUrl)) {
         setPaymentPageUrl(result.paymentPageUrl);
       }
 
       if (result.status === 'PAID') {
-        await updateOrderPaymentState(orderId, 'PAID', 'PREPARING');
-        await onClearCart();
+        await safeUpdateOrderState(orderId, 'PAID', 'PREPARING');
+        try {
+          await onClearCart();
+        } catch {
+          // Cart will sync on next snapshot
+        }
         setPaymentPhase('paid');
       } else if (result.status === 'FAILED') {
-        await updateOrderPaymentState(orderId, 'FAILED', 'CANCELLED');
+        await safeUpdateOrderState(orderId, 'FAILED', 'CANCELLED');
         setPaymentPhase('failed');
       } else {
         setPaymentPhase('awaiting_confirmation');
@@ -446,9 +481,22 @@ export function CheckoutModal({
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : '';
       if (rawMsg.startsWith('{')) {
-        setErrorMessage(
-          'Impossible d’enregistrer la commande dans votre compte. Vérifiez votre connexion Google et réessayez.'
-        );
+        let parsedErr = '';
+        try {
+          const parsed = JSON.parse(rawMsg) as { error?: string };
+          parsedErr = parsed.error || '';
+        } catch {
+          parsedErr = '';
+        }
+        if (/offline|unavailable|network/i.test(parsedErr)) {
+          setErrorMessage(
+            'Connexion au serveur de commandes momentanément indisponible. Vérifiez votre connexion Internet et réessayez.'
+          );
+        } else {
+          setErrorMessage(
+            'Impossible d’enregistrer la commande dans votre compte. Vérifiez votre connexion Google et réessayez.'
+          );
+        }
       } else {
         setErrorMessage(
           rawMsg || 'Erreur lors de la création de commande ou de la validation du paiement.'
@@ -637,13 +685,41 @@ export function CheckoutModal({
                   {gatewayMessage ||
                     'Le paiement a été refusé ou expiré. Aucun montant n’a été débité.'}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setPaymentPhase('form')}
-                  className="px-6 py-3 bg-[#141414] text-white text-sm font-semibold rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
-                >
-                  Réessayer le paiement
-                </button>
+                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentPhase('form')}
+                    className="px-6 py-3 bg-[#141414] text-white text-sm font-semibold rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                  >
+                    Réessayer le paiement
+                  </button>
+                  {paymentMethod === 'MOBILEMONEY' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod('CARD');
+                        setErrorMessage(null);
+                        setPaymentPhase('form');
+                      }}
+                      className="px-5 py-3 border border-zinc-300 text-[#141414] text-sm font-semibold rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer"
+                    >
+                      Payer par Carte Bancaire
+                    </button>
+                  )}
+                  {siteSettings.enableCdfCurrency && currency === 'USD' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangeCurrency('CDF');
+                        setErrorMessage(null);
+                        setPaymentPhase('form');
+                      }}
+                      className="px-5 py-3 border border-zinc-300 text-[#141414] text-sm font-semibold rounded-lg hover:bg-zinc-50 transition-colors cursor-pointer"
+                    >
+                      Essayer en CDF
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <form onSubmit={handleSubmitPayment} className="space-y-6">

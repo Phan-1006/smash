@@ -101,7 +101,7 @@ function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown
   const original = raw.original;
   if (original && typeof original === 'object') {
     const origObj = original as Record<string, unknown>;
-    if (origObj.data && typeof origObj.data === 'object') {
+    if (origObj.data && typeof origObj.data === 'object' && !Array.isArray(origObj.data)) {
       return { ...raw, ...origObj, ...(origObj.data as Record<string, unknown>) };
     }
     return { ...raw, ...origObj };
@@ -112,6 +112,15 @@ function unwrapGatewayData(raw: Record<string, unknown>): Record<string, unknown
   return raw;
 }
 
+function parseStatusCode(data: Record<string, unknown>, fallbackStatus: number): number {
+  const candidates = [data.status_code, data.statusCode, data.code, data.status];
+  for (const val of candidates) {
+    if (typeof val === 'number' && Number.isFinite(val)) return val;
+    if (typeof val === 'string' && /^\d{3}$/.test(val.trim())) return Number(val.trim());
+  }
+  return fallbackStatus;
+}
+
 function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
   const s = raw.toUpperCase().trim();
   if (
@@ -119,8 +128,7 @@ function mapStatus(raw: string): 'PENDING' | 'PAID' | 'FAILED' {
     s === 'SUCCESSFUL' ||
     s === 'PAID' ||
     s === 'APPROVED' ||
-    s === 'COMPLETED' ||
-    s === '200'
+    s === 'COMPLETED'
   ) {
     return 'PAID';
   }
@@ -156,6 +164,9 @@ function extractError(
   const candidateKeys = [
     'transactionDescription',
     'statusDescription',
+    'operatorMessage',
+    'error_description',
+    'statusMessage',
     'description',
     'message',
     'error',
@@ -177,6 +188,144 @@ function extractError(
     return `Transaction refusée par l’opérateur${providerLabel}. Vérifiez que le numéro est actif, que votre solde est suffisant, ou essayez en CDF / Carte Bancaire.`;
   }
   return `Erreur passerelle MaishaPay (${httpStatus})`;
+}
+
+async function createHostedCheckoutFallback(params: {
+  gatewayMode: string;
+  publicApiKey: string;
+  secretApiKey: string;
+  txRef: string;
+  amount: string;
+  currency: string;
+  callbackUrl: string;
+}): Promise<string | undefined> {
+  try {
+    const form = new URLSearchParams();
+    form.set('gatewayMode', params.gatewayMode);
+    form.set('publicApiKey', params.publicApiKey);
+    form.set('secretApiKey', params.secretApiKey);
+    form.set('transactionReference', params.txRef);
+    form.set('montant', params.amount);
+    form.set('devise', params.currency);
+    form.set('callbackUrl', params.callbackUrl);
+
+    const resp = await fetch(`${MAISHAPAY_BASE_URL}/payment/vers1.0/merchant/checkout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html,application/xhtml+xml,application/json',
+      },
+      body: form.toString(),
+      redirect: 'manual',
+    });
+
+    const location = resp.headers.get('location')?.trim();
+    if (!location) return undefined;
+
+    const resolved = location.startsWith('http')
+      ? location
+      : `${MAISHAPAY_BASE_URL}${location.startsWith('/') ? '' : '/'}${location}`;
+
+    if (/\/checkout\/errors?\b/i.test(resolved)) {
+      return undefined;
+    }
+    if (/^https:\/\//i.test(resolved)) {
+      return resolved;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function tryV1MobileMoneyFallback(params: {
+  gatewayMode: string;
+  publicApiKey: string;
+  secretApiKey: string;
+  txRef: string;
+  amount: number;
+  currency: string;
+  customerFullName: string;
+  customerPhoneNumber: string;
+  customerEmail: string;
+  provider: string;
+  callbackUrl: string;
+}): Promise<Record<string, unknown> | null> {
+  try {
+    const resp = await fetch(`${MAISHAPAY_BASE_URL}/api/payment/rest/vers1.0/merchant`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        gatewayMode: Number(params.gatewayMode) === 0 ? 0 : 1,
+        publicApiKey: params.publicApiKey,
+        secretApiKey: params.secretApiKey,
+        transactionReference: params.txRef,
+        amount: params.amount,
+        currency: params.currency,
+        customerFullName: params.customerFullName,
+        customerPhoneNumber: params.customerPhoneNumber,
+        customerEmailAddress: params.customerEmail,
+        chanel: 'MOBILEMONEY',
+        provider: params.provider,
+        walletID: params.customerPhoneNumber,
+        callbackUrl: params.callbackUrl,
+      }),
+    });
+
+    const rawText = await resp.text();
+    let parsed: Record<string, unknown> = {};
+    try {
+      parsed = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+
+    const data = unwrapGatewayData(parsed);
+    const code = parseStatusCode(data, resp.status);
+    const statusRaw = String(
+      data.transactionStatus ||
+        data.paymentStatus ||
+        (typeof data.status === 'string' && !/^\d+$/.test(data.status.trim()) ? data.status : '') ||
+        'PENDING'
+    );
+    const mapped = mapStatus(statusRaw);
+    if (!resp.ok || code >= 400 || mapped === 'FAILED') {
+      return null;
+    }
+
+    const paymentPageUrl =
+      (typeof data.paymentPage === 'string' && data.paymentPage) ||
+      (typeof data.redirectUrl === 'string' && data.redirectUrl) ||
+      (typeof data.url === 'string' && data.url) ||
+      undefined;
+
+    return {
+      transactionReference: params.txRef,
+      channel: 'MOBILEMONEY',
+      provider: params.provider,
+      amount:
+        params.currency === 'CDF'
+          ? String(Math.round(params.amount))
+          : params.amount.toFixed(2),
+      currency: params.currency,
+      customerPhoneNumber: params.customerPhoneNumber,
+      status: mapped,
+      originatingTransactionId:
+        typeof data.originatingTransactionId === 'string'
+          ? data.originatingTransactionId
+          : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
+          ? String(data.transactionId)
+          : undefined,
+      paymentPageUrl,
+      gatewayMessage:
+        (typeof data.transactionDescription === 'string' && data.transactionDescription) ||
+        (typeof data.message === 'string' && data.message) ||
+        'Demande USSD envoyée. Veuillez valider sur votre téléphone.',
+      updatedAt: new Date().toISOString(),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export default async function handler(req: VercelIncoming, res: ServerResponse): Promise<void> {
@@ -292,20 +441,71 @@ export default async function handler(req: VercelIncoming, res: ServerResponse):
     }
 
     const data = unwrapGatewayData(parsed);
-    const bodyStatusCode =
-      typeof data.status_code === 'number'
-        ? data.status_code
-        : typeof data.status === 'number'
-        ? data.status
-        : response.status;
+    const bodyStatusCode = parseStatusCode(data, response.status);
 
-    const statusRaw = String(data.transactionStatus || data.status || 'PENDING');
+    const statusRaw = String(
+      data.transactionStatus ||
+        data.paymentStatus ||
+        (typeof data.status === 'string' && !/^\d+$/.test(data.status.trim()) ? data.status : '') ||
+        'PENDING'
+    );
     const mappedGatewayStatus = mapStatus(statusRaw);
 
     if (!response.ok || bodyStatusCode >= 400) {
       const message = extractError(data, bodyStatusCode, normalizedProvider);
       const hasFieldErrors = Boolean(data.errors && typeof data.errors === 'object');
       if (mappedGatewayStatus === 'FAILED' && !hasFieldErrors) {
+        const callbackUrl = resolveCallbackUrl(req);
+        const v1Record = await tryV1MobileMoneyFallback({
+          gatewayMode,
+          publicApiKey,
+          secretApiKey,
+          txRef: `${txRef}-V1`,
+          amount: Number(formattedAmount),
+          currency: normalizedCurrency,
+          customerFullName: (customerFullName || 'Client Maison Smash').slice(0, 80),
+          customerPhoneNumber: formattedPhone,
+          customerEmail: (customerEmail || 'client@maisonsmash.com').slice(0, 160),
+          provider: normalizedProvider,
+          callbackUrl,
+        });
+        if (v1Record) {
+          sendJson(req, res, 200, v1Record);
+          return;
+        }
+
+        const hostedFallbackUrl = await createHostedCheckoutFallback({
+          gatewayMode,
+          publicApiKey,
+          secretApiKey,
+          txRef: `${txRef}-CHK`,
+          amount: formattedAmount,
+          currency: normalizedCurrency,
+          callbackUrl,
+        });
+
+        if (hostedFallbackUrl) {
+          sendJson(req, res, 200, {
+            transactionReference: `${txRef}-CHK`,
+            channel: 'MOBILEMONEY',
+            provider: normalizedProvider,
+            amount: formattedAmount,
+            currency: normalizedCurrency,
+            customerPhoneNumber: formattedPhone,
+            status: 'PENDING',
+            originatingTransactionId:
+              typeof data.originatingTransactionId === 'string'
+                ? data.originatingTransactionId
+                : typeof data.transactionId === 'string' || typeof data.transactionId === 'number'
+                ? String(data.transactionId)
+                : undefined,
+            paymentPageUrl: hostedFallbackUrl,
+            gatewayMessage: `Le push USSD direct (${normalizedProvider}) n’a pas abouti. Finalisez votre paiement sur la page sécurisée MaishaPay.`,
+            updatedAt: new Date().toISOString(),
+          });
+          return;
+        }
+
         sendJson(req, res, 200, {
           transactionReference: txRef,
           channel: 'MOBILEMONEY',
